@@ -56,6 +56,11 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
       return
     }
 
+    if (files.some((file) => !file.category)) {
+      setError("Selecione a categoria de todos os anexos")
+      return
+    }
+
     setIsSubmitting(true)
     setError(null)
 

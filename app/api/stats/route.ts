@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/session"
-import { adminDb } from "@/lib/firebase/admin"
+import { getAdminDb } from "@/lib/firebase/admin"
 import type { Ticket, Status } from "@/lib/schemas"
 import type { FirebaseFirestore } from "firebase-admin/firestore"
 
@@ -11,12 +11,12 @@ export async function GET() {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    const ticketsRef = adminDb.collection("tickets")
+    const ticketsRef = getAdminDb().collection("tickets")
     let query: FirebaseFirestore.Query = ticketsRef.where("tenantId", "==", session.tenantId)
 
     // Operators can only see their store's tickets
-    if (session.role === "operador" && session.storeIds?.length) {
-      query = query.where("storeId", "in", session.storeIds)
+    if (session.role === "RECEBEDOR" && session.storeId) {
+      query = query.where("storeId", "==", session.storeId)
     }
 
     const snapshot = await query.get()
@@ -42,16 +42,11 @@ export async function GET() {
       stats.byStatus[ticket.status] = (stats.byStatus[ticket.status] || 0) + 1
 
       // Pending action (not closed or cancelled)
-      if (!["FECHADO", "CANCELADO"].includes(ticket.status)) {
+      if (!["ENCERRADO"].includes(ticket.status)) {
         stats.pendingAction++
 
         // Check SLA breach
-        if (ticket.slaDeadline) {
-          const deadline = new Date(ticket.slaDeadline)
-          if (deadline < now) {
-            stats.overSla++
-          }
-        }
+        if (ticket.dueDate && new Date(ticket.dueDate) < now) stats.overSla++
       }
 
       // Time-based stats

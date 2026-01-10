@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/session"
-import { adminDb } from "@/lib/firebase/admin"
+import { ADMIN_ROLE } from "@/lib/roles"
+import { fetchAdminAuditEntries } from "@/lib/services/adminService"
+
+export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
   try {
     const session = await requireAuth()
-    if (session.role !== "ADMIN") {
+    if (session.role !== ADMIN_ROLE) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
     }
 
@@ -13,43 +16,17 @@ export async function GET(request: Request) {
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
     const ticketId = searchParams.get("ticketId")
+    const userId = searchParams.get("userId")
     const action = searchParams.get("action")
 
-    let query = adminDb
-      .collection("audit")
-      .where("tenantId", "==", session.tenantId)
-      .orderBy("createdAt", "desc")
-      .limit(100)
-
-    if (ticketId) {
-      query = query.where("ticketId", "==", ticketId)
-    }
-
-    if (action && action !== "all") {
-      query = query.where("action", "==", action)
-    }
-
-    const snapshot = await query.get()
-
-    let entries = snapshot.docs.map((doc) => {
-      const data = doc.data()
-      return {
-        id: doc.id,
-        ...data,
-        createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
-      }
+    const entries = await fetchAdminAuditEntries({
+      tenantId: session.tenantId,
+      startDate,
+      endDate,
+      ticketId,
+      action,
+      userId,
     })
-
-    // Filter by date range in memory if needed
-    if (startDate) {
-      const start = new Date(startDate)
-      entries = entries.filter((e) => new Date(e.createdAt) >= start)
-    }
-    if (endDate) {
-      const end = new Date(endDate)
-      end.setHours(23, 59, 59, 999)
-      entries = entries.filter((e) => new Date(e.createdAt) <= end)
-    }
 
     return NextResponse.json({ entries })
   } catch (error) {

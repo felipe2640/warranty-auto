@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import type { Status } from "@/lib/schemas"
 import { STATUS_ORDER } from "@/lib/schemas"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 interface StageInfo {
@@ -18,6 +19,7 @@ interface StageInfo {
 interface StepperProps {
   currentStatus: Status
   stageHistory?: StageInfo[]
+  stageSummaryMap?: Record<Status, { status: Status; at?: Date; byName?: string; lastNote?: string; attachmentsPreview: Array<{ name: string; driveFileId: string }> }>
   onStageClick?: (status: Status) => void
 }
 
@@ -30,8 +32,9 @@ const STATUS_LABELS: Record<Status, string> = {
   ENCERRADO: "Encerrado",
 }
 
-export function Stepper({ currentStatus, stageHistory = [], onStageClick }: StepperProps) {
+export function Stepper({ currentStatus, stageHistory = [], stageSummaryMap, onStageClick }: StepperProps) {
   const [expandedStep, setExpandedStep] = useState<Status | null>(null)
+  const [selectedStatus, setSelectedStatus] = useState<Status | null>(null)
   const currentIndex = STATUS_ORDER.indexOf(currentStatus)
 
   const getStageInfo = (status: Status): StageInfo | undefined => {
@@ -75,7 +78,11 @@ export function Stepper({ currentStatus, stageHistory = [], onStageClick }: Step
           return (
             <div key={status} className="flex items-center flex-1">
               <button
-                onClick={() => state === "completed" && onStageClick?.(status)}
+                onClick={() => {
+                  if (state !== "completed") return
+                  setSelectedStatus(status)
+                  onStageClick?.(status)
+                }}
                 disabled={state !== "completed"}
                 className={cn("flex flex-col items-center gap-2 group", state === "completed" && "cursor-pointer")}
               >
@@ -156,6 +163,11 @@ export function Stepper({ currentStatus, stageHistory = [], onStageClick }: Step
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => {
+                        if (state === "completed") {
+                          setSelectedStatus(status)
+                        }
+                      }}
                       className={cn(
                         "w-full justify-between p-0 h-auto font-normal",
                         state !== "completed" && "pointer-events-none",
@@ -197,6 +209,56 @@ export function Stepper({ currentStatus, stageHistory = [], onStageClick }: Step
           )
         })}
       </div>
+
+      <Dialog open={!!selectedStatus} onOpenChange={() => setSelectedStatus(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resumo da etapa</DialogTitle>
+          </DialogHeader>
+          {selectedStatus && stageSummaryMap?.[selectedStatus] ? (
+            <div className="space-y-3 text-sm">
+              <p>
+                <span className="text-muted-foreground">Etapa:</span> {STATUS_LABELS[selectedStatus]}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Data/Hora:</span>{" "}
+                {formatDate(stageSummaryMap[selectedStatus].at)}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Responsável:</span>{" "}
+                {stageSummaryMap[selectedStatus].byName || "—"}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Última nota:</span>{" "}
+                {stageSummaryMap[selectedStatus].lastNote || "—"}
+              </p>
+              <div>
+                <p className="text-muted-foreground">Anexos:</p>
+                {stageSummaryMap[selectedStatus].attachmentsPreview.length === 0 ? (
+                  <p className="text-muted-foreground">Nenhum anexo</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {stageSummaryMap[selectedStatus].attachmentsPreview.map((attachment, index) => (
+                      <li key={`${attachment.driveFileId}-${index}`}>
+                        <a
+                          href={`/api/files/${attachment.driveFileId}`}
+                          className="text-primary hover:underline"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {attachment.name}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Resumo indisponível.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

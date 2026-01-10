@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/session"
-import { adminDb } from "@/lib/firebase/admin"
 import { storeSchema } from "@/lib/schemas"
+import { ADMIN_ROLE } from "@/lib/roles"
+import { createAdminStore, listAdminStores } from "@/lib/services/adminService"
 
 export async function GET() {
   try {
     const session = await getServerSession()
-    if (!session || !["admin", "supervisor"].includes(session.role)) {
+    if (!session || session.role !== ADMIN_ROLE) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
     }
 
-    const snapshot = await adminDb.collection("stores").where("tenantId", "==", session.tenantId).get()
-
-    const stores = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }))
-
+    const stores = await listAdminStores(session.tenantId)
     return NextResponse.json(stores)
   } catch (error) {
     console.error("Error fetching stores:", error)
@@ -27,13 +22,14 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const session = await getServerSession()
-    if (!session || session.role !== "admin") {
+    if (!session || session.role !== ADMIN_ROLE) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
     }
 
     const body = await request.json()
     const validation = storeSchema.omit({ id: true }).safeParse({
       ...body,
+      code: body.code || body.name,
       tenantId: session.tenantId,
     })
 
@@ -44,13 +40,14 @@ export async function POST(request: Request) {
     const storeData = {
       ...validation.data,
       active: true,
-      createdAt: new Date().toISOString(),
-      createdBy: session.uid,
     }
 
-    const docRef = await adminDb.collection("stores").add(storeData)
+    const result = await createAdminStore({
+      tenantId: session.tenantId,
+      data: storeData,
+    })
 
-    return NextResponse.json({ id: docRef.id, ...storeData })
+    return NextResponse.json({ id: result, ...storeData })
   } catch (error) {
     console.error("Error creating store:", error)
     return NextResponse.json({ error: "Erro ao criar loja" }, { status: 500 })

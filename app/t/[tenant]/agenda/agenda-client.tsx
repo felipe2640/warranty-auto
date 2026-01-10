@@ -39,6 +39,11 @@ interface AgendaClientProps {
   userRole: Role
   canPerformActions: boolean
   initialTab: string
+  nextCursors: {
+    hoje?: string
+    atrasadas?: string
+    proximos?: string
+  }
 }
 
 interface ContactDialogState {
@@ -54,6 +59,7 @@ export function AgendaClient({
   userRole,
   canPerformActions,
   initialTab,
+  nextCursors,
 }: AgendaClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -69,6 +75,15 @@ export function AgendaClient({
     setActiveTab(value)
     const params = new URLSearchParams(searchParams.toString())
     params.set("tab", value)
+    params.delete("cursor")
+    router.push(`?${params.toString()}`, { scroll: false })
+  }
+
+  const handleNextPage = (tab: string, cursor?: string) => {
+    if (!cursor) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", tab)
+    params.set("cursor", cursor)
     router.push(`?${params.toString()}`, { scroll: false })
   }
 
@@ -336,11 +351,42 @@ export function AgendaClient({
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="hoje">{renderTable(grouped.today, false)}</TabsContent>
+            <TabsContent value="hoje" className="space-y-4">
+              {renderTable(grouped.today, false)}
+              {nextCursors.hoje && (
+                <div className="flex justify-center">
+                  <Button variant="outline" size="sm" onClick={() => handleNextPage("hoje", nextCursors.hoje)}>
+                    Próxima página
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
 
-            <TabsContent value="atrasadas">{renderTable(grouped.overdue, true)}</TabsContent>
+            <TabsContent value="atrasadas" className="space-y-4">
+              {renderTable(grouped.overdue, true)}
+              {nextCursors.atrasadas && (
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleNextPage("atrasadas", nextCursors.atrasadas)}
+                  >
+                    Próxima página
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
 
-            <TabsContent value="proximos">{renderTable(grouped.next7Days, false)}</TabsContent>
+            <TabsContent value="proximos" className="space-y-4">
+              {renderTable(grouped.next7Days, false)}
+              {nextCursors.proximos && (
+                <div className="flex justify-center">
+                  <Button variant="outline" size="sm" onClick={() => handleNextPage("proximos", nextCursors.proximos)}>
+                    Próxima página
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
           </Tabs>
         </div>
       </div>

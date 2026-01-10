@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useRef, useState, useEffect, useCallback } from "react"
+import { memo, useRef, useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Eraser, Check } from "lucide-react"
 
@@ -12,7 +12,7 @@ interface SignaturePadProps {
   disabled?: boolean
 }
 
-export function SignaturePad({ onSave, onClear, disabled }: SignaturePadProps) {
+function SignaturePadComponent({ onSave, onClear, disabled }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [hasSignature, setHasSignature] = useState(false)
@@ -41,7 +41,7 @@ export function SignaturePad({ onSave, onClear, disabled }: SignaturePadProps) {
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }, [])
 
-  const getCoordinates = (e: React.TouchEvent | React.MouseEvent) => {
+  const getCoordinates = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return { x: 0, y: 0 }
 
@@ -49,20 +49,13 @@ export function SignaturePad({ onSave, onClear, disabled }: SignaturePadProps) {
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
 
-    if ("touches" in e) {
-      return {
-        x: (e.touches[0].clientX - rect.left) * scaleX,
-        y: (e.touches[0].clientY - rect.top) * scaleY,
-      }
-    }
-
     return {
       x: (e.clientX - rect.left) * scaleX,
       y: (e.clientY - rect.top) * scaleY,
     }
   }
 
-  const startDrawing = (e: React.TouchEvent | React.MouseEvent) => {
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (disabled) return
 
     const ctx = getContext()
@@ -75,7 +68,7 @@ export function SignaturePad({ onSave, onClear, disabled }: SignaturePadProps) {
     setHasSignature(true)
   }
 
-  const draw = (e: React.TouchEvent | React.MouseEvent) => {
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing || disabled) return
 
     const ctx = getContext()
@@ -117,13 +110,10 @@ export function SignaturePad({ onSave, onClear, disabled }: SignaturePadProps) {
           width={400}
           height={200}
           className="w-full touch-none"
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
+          onPointerDown={startDrawing}
+          onPointerMove={draw}
+          onPointerUp={stopDrawing}
+          onPointerLeave={stopDrawing}
         />
       </div>
 
@@ -140,3 +130,5 @@ export function SignaturePad({ onSave, onClear, disabled }: SignaturePadProps) {
     </div>
   )
 }
+
+export const SignaturePad = memo(SignaturePadComponent)

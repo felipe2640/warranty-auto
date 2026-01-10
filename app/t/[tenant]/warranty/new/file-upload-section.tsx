@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useRef, useState } from "react"
+import { memo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -29,7 +29,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   OUTRO: "Outro",
 }
 
-export function FileUploadSection({ files, onFilesChange, disabled }: FileUploadSectionProps) {
+function FileUploadSectionComponent({ files, onFilesChange, disabled }: FileUploadSectionProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [previewFile, setPreviewFile] = useState<{ url: string; name: string; type: string } | null>(null)
 
@@ -187,3 +187,5 @@ export function FileUploadSection({ files, onFilesChange, disabled }: FileUpload
     </div>
   )
 }
+
+export const FileUploadSection = memo(FileUploadSectionComponent)

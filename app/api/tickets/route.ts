@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { requireTenantSession } from "@/lib/session"
-import { createTicket, listTickets } from "@/lib/repositories/tickets"
+import { listTickets } from "@/lib/repositories/tickets"
 import { getTenantSettings, listStores } from "@/lib/repositories/admin"
-import { addAttachment } from "@/lib/repositories/tickets"
 import { getUserPermissions } from "@/lib/permissions"
-import type { Status } from "@/lib/schemas"
+import { createTicketWithUploads } from "@/lib/services/warrantyService"
+import { type Status } from "@/lib/schemas"
 
 export async function POST(request: Request) {
   try {
@@ -18,84 +18,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 })
     }
 
-    const tenantSettings = await getTenantSettings(tenantId)
-
-    if (!tenantSettings?.driveRootFolderId) {
-      return NextResponse.json({ error: "Drive folder not configured" }, { status: 400 })
-    }
-
-    // Parse form data
-    const ticketData = {
+    const result = await createTicketWithUploads({
       tenantId,
-      storeId: formData.get("storeId") as string,
-      nfIda: (formData.get("nfIda") as string) || undefined,
-      nfRetorno: (formData.get("nfRetorno") as string) || undefined,
-      boletoComAbatimento: (formData.get("boletoComAbatimento") as string) || undefined,
-      remessa: (formData.get("remessa") as string) || undefined,
-      retorno: (formData.get("retorno") as string) || undefined,
-      nomeRazaoSocial: formData.get("nomeRazaoSocial") as string,
-      nomeFantasiaApelido: (formData.get("nomeFantasiaApelido") as string) || undefined,
-      cpfCnpj: (formData.get("cpfCnpj") as string).replace(/\D/g, ""),
-      celular: (formData.get("celular") as string).replace(/\D/g, ""),
-      isWhatsapp: formData.get("isWhatsapp") === "true",
-      descricaoPeca: formData.get("descricaoPeca") as string,
-      quantidade: Number.parseInt(formData.get("quantidade") as string, 10),
-      ref: (formData.get("ref") as string) || undefined,
-      codigo: (formData.get("codigo") as string) || undefined,
-      defeitoPeca: formData.get("defeitoPeca") as string,
-      numeroVendaOuCfe: formData.get("numeroVendaOuCfe") as string,
-      numeroVendaOuCfeFornecedor: (formData.get("numeroVendaOuCfeFornecedor") as string) || undefined,
-      dataVenda: new Date(formData.get("dataVenda") as string),
-      dataRecebendoPeca: new Date(formData.get("dataRecebendoPeca") as string),
-      dataIndoFornecedor: formData.get("dataIndoFornecedor")
-        ? new Date(formData.get("dataIndoFornecedor") as string)
-        : undefined,
-      obs: (formData.get("obs") as string) || undefined,
-      createdBy: session.uid,
+      session,
+      formData,
+    })
+
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
     }
 
-    // Create ticket
-    const ticketId = await createTicket(ticketData, tenantSettings.driveRootFolderId, session.uid, session.name)
-
-    // Handle signature upload
-    const signatureDataUrl = formData.get("signatureDataUrl") as string
-    if (signatureDataUrl) {
-      const base64Data = signatureDataUrl.replace(/^data:image\/png;base64,/, "")
-      const signatureBuffer = Buffer.from(base64Data, "base64")
-
-      await addAttachment(ticketId, signatureBuffer, {
-        name: `assinatura_${ticketId}.png`,
-        mimeType: "image/png",
-        size: signatureBuffer.length,
-        category: "ASSINATURA",
-        uploadedBy: session.uid,
-        uploadedByName: session.name,
-      })
-    }
-
-    // Handle file attachments
-    const attachmentEntries = formData.getAll("attachments")
-    const categoryEntries = formData.getAll("attachmentCategories")
-
-    for (let i = 0; i < attachmentEntries.length; i++) {
-      const file = attachmentEntries[i] as File
-      const category = (categoryEntries[i] as string) || "OUTRO"
-
-      if (file && file.size > 0) {
-        const buffer = Buffer.from(await file.arrayBuffer())
-
-        await addAttachment(ticketId, buffer, {
-          name: file.name,
-          mimeType: file.type,
-          size: file.size,
-          category,
-          uploadedBy: session.uid,
-          uploadedByName: session.name,
-        })
-      }
-    }
-
-    return NextResponse.json({ success: true, ticketId })
+    return NextResponse.json({ success: true, ticketId: result.ticketId })
   } catch (error) {
     console.error("Create ticket error:", error)
     return NextResponse.json({ error: "Failed to create ticket" }, { status: 500 })

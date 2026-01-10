@@ -1,4 +1,5 @@
-import type { Role, Status } from "./schemas"
+import type { Role } from "./roles"
+import type { Status } from "./schemas"
 
 // Define what each role can do
 export const ROLE_PERMISSIONS: Record<
@@ -139,7 +140,7 @@ export const ROLE_PERMISSIONS: Record<
 
 // Which roles can advance from each status
 export const STATUS_ADVANCE_PERMISSIONS: Record<Status, Role[]> = {
-  RECEBIMENTO: ["RECEBEDOR", "INTERNO", "ADMIN"],
+  RECEBIMENTO: ["INTERNO", "ADMIN"],
   INTERNO: ["INTERNO", "ADMIN"],
   ENTREGA_LOGISTICA: ["LOGISTICA", "ADMIN"],
   COBRANCA_ACOMPANHAMENTO: ["COBRANCA", "ADMIN"],
@@ -174,7 +175,7 @@ export const STAGE_REQUIREMENTS: Record<
   COBRANCA_ACOMPANHAMENTO: {
     nextStatus: "RESOLUCAO",
     requirements: ["Resposta do fornecedor deve ser registrada"],
-    requirementChecks: ["hasSupplierResponse"],
+    requirementChecks: ["supplierResponse"],
   },
   RESOLUCAO: {
     nextStatus: "ENCERRADO",

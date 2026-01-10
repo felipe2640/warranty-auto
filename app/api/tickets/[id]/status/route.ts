@@ -1,14 +1,8 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/session"
-import {
-  getTicketById,
-  updateTicketStatus,
-  revertTicketStatus,
-  hasAttachmentOfCategory,
-} from "@/lib/repositories/tickets"
-import { getSupplierById, getTenantSettings } from "@/lib/repositories/admin"
-import { getUserPermissions, canUserAdvanceStatus, STAGE_REQUIREMENTS } from "@/lib/permissions"
-import { STATUS_ORDER, type Status } from "@/lib/schemas"
+import { getUserPermissions } from "@/lib/permissions"
+import { type Status } from "@/lib/schemas"
+import { advanceTicketStatus, revertTicketStatusWithAudit } from "@/lib/services/warrantyService"
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -19,92 +13,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { id } = await params
     const body = await request.json()
-    const { action, targetStatus, reason, supplierId, resolutionResult, resolutionNotes } = body
-
-    const ticket = await getTicketById(id)
-    if (!ticket) {
-      return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
-    }
-
-    if (ticket.tenantId !== session.tenantId) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 })
-    }
+    const { action, targetStatus, reason, supplierId, resolutionResult, resolutionNotes, supplierResponse } = body
 
     const permissions = getUserPermissions(session.role)
 
     if (action === "advance") {
-      // Check permission to advance from current status
-      if (!canUserAdvanceStatus(session.role, ticket.status)) {
-        return NextResponse.json({ error: "Permission denied to advance this status" }, { status: 403 })
+      const result = await advanceTicketStatus({
+        ticketId: id,
+        tenantId: session.tenantId,
+        role: session.role,
+        userId: session.uid,
+        userName: session.name,
+        supplierId,
+        resolutionResult,
+        resolutionNotes,
+        supplierResponse,
+      })
+
+      if (result.error) {
+        return NextResponse.json({ error: result.error.message, missingRequirement: result.error.missing }, { status: result.status })
       }
 
-      const stageReq = STAGE_REQUIREMENTS[ticket.status]
-      if (!stageReq.nextStatus) {
-        return NextResponse.json({ error: "Cannot advance from this status" }, { status: 400 })
-      }
-
-      // Check requirements
-      const tenantSettings = await getTenantSettings(session.tenantId)
-
-      // INTERNO -> ENTREGA_LOGISTICA: requires supplierId
-      if (ticket.status === "INTERNO" && !ticket.supplierId && !supplierId) {
-        return NextResponse.json(
-          { error: "Fornecedor deve estar definido", missingRequirement: "supplierId" },
-          { status: 400 },
-        )
-      }
-
-      // ENTREGA_LOGISTICA -> COBRANCA: requires CANHOTO attachment
-      if (ticket.status === "ENTREGA_LOGISTICA" && tenantSettings?.policies.requireCanhotForCobranca) {
-        const hasCanhot = await hasAttachmentOfCategory(id, "CANHOTO")
-        if (!hasCanhot) {
-          return NextResponse.json(
-            { error: "Anexo CANHOTO é obrigatório", missingRequirement: "canhoto" },
-            { status: 400 },
-          )
-        }
-      }
-
-      // RESOLUCAO -> ENCERRADO: requires resolution result
-      if (ticket.status === "RESOLUCAO" && !resolutionResult) {
-        return NextResponse.json(
-          { error: "Resultado final deve ser definido", missingRequirement: "resolution" },
-          { status: 400 },
-        )
-      }
-
-      // Prepare additional data based on transition
-      const additionalData: Partial<typeof ticket> = {}
-
-      // If advancing from INTERNO and setting supplier
-      if (ticket.status === "INTERNO" && supplierId) {
-        const supplier = await getSupplierById(supplierId)
-        if (supplier) {
-          additionalData.supplierId = supplierId
-          additionalData.supplierName = supplier.name
-          additionalData.slaDays = supplier.slaDays
-          // Calculate due date
-          const dueDate = new Date()
-          dueDate.setDate(dueDate.getDate() + supplier.slaDays)
-          additionalData.dueDate = dueDate
-        }
-      }
-
-      // If advancing from ENTREGA_LOGISTICA, set delivery date
-      if (ticket.status === "ENTREGA_LOGISTICA") {
-        additionalData.deliveredToSupplierAt = new Date()
-      }
-
-      // If advancing to ENCERRADO
-      if (stageReq.nextStatus === "ENCERRADO") {
-        additionalData.resolutionResult = resolutionResult
-        additionalData.resolutionNotes = resolutionNotes
-        additionalData.closedAt = new Date()
-      }
-
-      await updateTicketStatus(id, stageReq.nextStatus, session.uid, session.name, additionalData)
-
-      return NextResponse.json({ success: true, newStatus: stageReq.nextStatus })
+      return NextResponse.json({ success: true, newStatus: result.nextStatus })
     }
 
     if (action === "revert") {
@@ -116,14 +46,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         return NextResponse.json({ error: "Target status and reason are required" }, { status: 400 })
       }
 
-      const currentIndex = STATUS_ORDER.indexOf(ticket.status)
-      const targetIndex = STATUS_ORDER.indexOf(targetStatus as Status)
+      const revertResult = await revertTicketStatusWithAudit({
+        ticketId: id,
+        tenantId: session.tenantId,
+        userId: session.uid,
+        userName: session.name,
+        role: session.role,
+        targetStatus: targetStatus as Status,
+        reason,
+      })
 
-      if (targetIndex >= currentIndex) {
-        return NextResponse.json({ error: "Can only revert to a previous status" }, { status: 400 })
+      if (revertResult.error) {
+        return NextResponse.json({ error: revertResult.error.message }, { status: revertResult.status })
       }
-
-      await revertTicketStatus(id, targetStatus as Status, session.uid, session.name, reason)
 
       return NextResponse.json({ success: true, newStatus: targetStatus })
     }
