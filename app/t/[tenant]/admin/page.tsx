@@ -1,64 +1,107 @@
 import { redirect } from "next/navigation"
-import { requireAuth } from "@/lib/session"
-import { adminDb } from "@/lib/firebase/admin"
-import { AdminClient } from "./admin-client"
-import { listUsers, listStores, listSuppliers } from "@/lib/repositories/admin"
+import { requireTenantSession } from "@/lib/session"
+import { AppLayout } from "@/components/app-layout"
+import { fetchOpenTicketsCount, fetchStores, fetchSuppliers, fetchTenantSettings, fetchUsers } from "@/lib/services/adminService"
+import { ADMIN_ROLE } from "@/lib/roles"
 import type { TenantSettings } from "@/lib/schemas"
+import Link from "next/link"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+export const dynamic = "force-dynamic"
 
 export default async function AdminPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
-  const session = await requireAuth()
-
-  if (session.tenantId !== tenant) {
-    redirect("/login")
-  }
+  const { session, tenantId } = await requireTenantSession(tenant)
 
   // Only ADMIN can access admin panel
-  if (session.role !== "ADMIN") {
+  if (session.role !== ADMIN_ROLE) {
     redirect(`/t/${tenant}`)
   }
 
-  // Fetch all data in parallel
-  const [users, stores, suppliers, settingsDoc, ticketsCount] = await Promise.all([
-    listUsers(session.tenantId),
-    listStores(session.tenantId),
-    listSuppliers(session.tenantId),
-    adminDb.collection("tenants").doc(session.tenantId).get(),
-    adminDb
-      .collection("tickets")
-      .where("tenantId", "==", session.tenantId)
-      .where("status", "!=", "ENCERRADO")
-      .count()
-      .get(),
+  const [users, stores, suppliers, settingsData, openTicketsCount] = await Promise.all([
+    fetchUsers(tenantId),
+    fetchStores(tenantId),
+    fetchSuppliers(tenantId),
+    fetchTenantSettings(tenantId),
+    fetchOpenTicketsCount(tenantId),
   ])
 
-  const settingsData = settingsDoc.exists ? settingsDoc.data() : {}
-  const settings: TenantSettings = {
-    id: session.tenantId,
+  const settings: TenantSettings = settingsData || {
+    id: tenantId,
     slug: tenant,
-    name: settingsData?.name || tenant,
-    driveRootFolderId: settingsData?.driveRootFolderId,
+    name: tenant,
+    driveRootFolderId: undefined,
     serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     policies: {
-      recebedorOnlyOwnStore: settingsData?.policies?.recebedorOnlyOwnStore ?? true,
-      requireCanhotForCobranca: settingsData?.policies?.requireCanhotForCobranca ?? true,
-      allowCloseWithoutResolution: settingsData?.policies?.allowCloseWithoutResolution ?? false,
-      defaultSlaDays: settingsData?.policies?.defaultSlaDays ?? 30,
+      recebedorOnlyOwnStore: true,
+      requireCanhotForCobranca: true,
+      allowCloseWithoutResolution: false,
+      defaultSlaDays: 30,
     },
-    createdAt: settingsData?.createdAt?.toDate?.() || new Date(),
-    updatedAt: settingsData?.updatedAt?.toDate?.() || new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
   }
 
   return (
-    <AdminClient
-      users={users}
-      stores={stores}
-      suppliers={suppliers}
-      settings={settings}
-      openTicketsCount={ticketsCount.data().count}
+    <AppLayout
       tenant={tenant}
       userName={session.name}
       userRole={session.role}
-    />
+      breadcrumbs={[{ label: "Admin" }]}
+      title="Administração"
+    >
+      <div className="p-4 lg:p-6">
+        <div className="mx-auto max-w-5xl space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Link href={`/t/${tenant}/admin/users`}>
+              <Card className="hover:bg-muted/50 transition-colors">
+                <CardHeader>
+                  <CardTitle>Usuários</CardTitle>
+                </CardHeader>
+                <CardContent>{users.length} usuários</CardContent>
+              </Card>
+            </Link>
+            <Link href={`/t/${tenant}/admin/stores`}>
+              <Card className="hover:bg-muted/50 transition-colors">
+                <CardHeader>
+                  <CardTitle>Lojas</CardTitle>
+                </CardHeader>
+                <CardContent>{stores.length} lojas</CardContent>
+              </Card>
+            </Link>
+            <Link href={`/t/${tenant}/admin/suppliers`}>
+              <Card className="hover:bg-muted/50 transition-colors">
+                <CardHeader>
+                  <CardTitle>Fornecedores</CardTitle>
+                </CardHeader>
+                <CardContent>{suppliers.length} fornecedores</CardContent>
+              </Card>
+            </Link>
+            <Link href={`/t/${tenant}/admin/settings`}>
+              <Card className="hover:bg-muted/50 transition-colors">
+                <CardHeader>
+                  <CardTitle>Configurações</CardTitle>
+                </CardHeader>
+                <CardContent>{settings.driveRootFolderId ? "Drive configurado" : "Drive pendente"}</CardContent>
+              </Card>
+            </Link>
+            <Link href={`/t/${tenant}/admin/audit`}>
+              <Card className="hover:bg-muted/50 transition-colors">
+                <CardHeader>
+                  <CardTitle>Auditoria</CardTitle>
+                </CardHeader>
+                <CardContent>Visualizar registros</CardContent>
+              </Card>
+            </Link>
+            <Card>
+              <CardHeader>
+                <CardTitle>Tickets Abertos</CardTitle>
+              </CardHeader>
+              <CardContent>{openTicketsCount} tickets em aberto</CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </AppLayout>
   )
 }

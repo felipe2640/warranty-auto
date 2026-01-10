@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,10 +15,11 @@ import type { Supplier } from "@/lib/schemas"
 
 interface SuppliersTabProps {
   suppliers: Supplier[]
-  onRefresh: () => void
+  onRefresh?: () => void
 }
 
 export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
+  const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -80,7 +82,7 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
 
       setIsDialogOpen(false)
       resetForm()
-      onRefresh()
+      onRefresh ? onRefresh() : router.refresh()
     } catch (error) {
       console.error("Error saving supplier:", error)
     } finally {
@@ -95,7 +97,7 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !supplier.active }),
       })
-      onRefresh()
+      onRefresh ? onRefresh() : router.refresh()
     } catch (error) {
       console.error("Error toggling supplier:", error)
     }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,7 +18,7 @@ import type { User, Store, Role } from "@/lib/schemas"
 interface UsersTabProps {
   users: User[]
   stores: Store[]
-  onRefresh: () => void
+  onRefresh?: () => void
 }
 
 const ROLES: { value: Role; label: string }[] = [
@@ -29,10 +30,10 @@ const ROLES: { value: Role; label: string }[] = [
 ]
 
 export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
+  const router = useRouter()
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [tempPassword, setTempPassword] = useState<string | null>(null)
 
   // Form state
   const [email, setEmail] = useState("")
@@ -50,7 +51,6 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
     setStoreId("")
     setActive(true)
     setEditingUser(null)
-    setTempPassword(null)
   }
 
   const openCreateSheet = () => {
@@ -85,15 +85,12 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password, name, role, storeId: storeId || null }),
         })
-        const data = await res.json()
-        if (data.tempPassword) {
-          setTempPassword(data.tempPassword)
-        } else {
+        if (res.ok) {
           setIsSheetOpen(false)
           resetForm()
         }
       }
-      onRefresh()
+      onRefresh ? onRefresh() : router.refresh()
     } catch (error) {
       console.error("[v0] Error saving user:", error)
     } finally {
@@ -108,7 +105,7 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !user.active }),
       })
-      onRefresh()
+      onRefresh ? onRefresh() : router.refresh()
     } catch (error) {
       console.error("[v0] Error toggling user:", error)
     }
@@ -266,49 +263,30 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
             <SheetTitle>{editingUser ? "Editar Usuário" : "Novo Usuário"}</SheetTitle>
           </SheetHeader>
 
-          {tempPassword ? (
+          <>
             <div className="space-y-4 py-6">
-              <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-                <p className="font-medium text-green-800">Usuário criado com sucesso!</p>
-                <p className="text-sm text-green-700 mt-2">Senha temporária:</p>
-                <code className="block mt-1 p-2 bg-white rounded border font-mono text-sm">{tempPassword}</code>
-                <p className="text-xs text-green-600 mt-2">Instrua o usuário a trocar a senha no primeiro acesso.</p>
-              </div>
-              <Button
-                className="w-full"
-                onClick={() => {
-                  resetForm()
-                  setIsSheetOpen(false)
-                }}
-              >
-                Fechar
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-4 py-6">
-                {!editingUser && (
-                  <>
-                    <div className="space-y-2">
-                      <Label>Email *</Label>
-                      <Input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="email@exemplo.com"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Senha *</Label>
-                      <Input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Mínimo 6 caracteres"
-                      />
-                    </div>
-                  </>
-                )}
+              {!editingUser && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Email *</Label>
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="email@exemplo.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Senha *</Label>
+                    <Input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                  </div>
+                </>
+              )}
 
                 <div className="space-y-2">
                   <Label>Nome *</Label>
@@ -361,28 +339,27 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
                 )}
               </div>
 
-              <SheetFooter>
-                <Button variant="outline" onClick={() => setIsSheetOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || (!editingUser && (!email || !password || !name))}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Salvando...
-                    </>
-                  ) : editingUser ? (
-                    "Salvar"
-                  ) : (
-                    "Criar"
-                  )}
-                </Button>
-              </SheetFooter>
-            </>
-          )}
+            <SheetFooter>
+              <Button variant="outline" onClick={() => setIsSheetOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={isSubmitting || (!editingUser && (!email || !password || !name))}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : editingUser ? (
+                  "Salvar"
+                ) : (
+                  "Criar"
+                )}
+              </Button>
+            </SheetFooter>
+          </>
         </SheetContent>
       </Sheet>
     </>

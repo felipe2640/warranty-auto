@@ -16,8 +16,9 @@ import { RevertStageDialog } from "./dialogs/revert-stage-dialog"
 import { AddTimelineDialog } from "./dialogs/add-timeline-dialog"
 import { AddAttachmentDialog } from "./dialogs/add-attachment-dialog"
 import { SetSupplierDialog } from "./dialogs/set-supplier-dialog"
-import { getUserPermissions, canUserAdvanceStatus, STAGE_REQUIREMENTS } from "@/lib/permissions"
-import type { Ticket, TimelineEntry, Attachment, AuditEntry, Supplier, Role } from "@/lib/schemas"
+import { getUserPermissions } from "@/lib/permissions"
+import type { Ticket, TimelineEntry, Attachment, AuditEntry, Supplier, Role, Status } from "@/lib/schemas"
+import type { NextTransitionChecklist, StageSummary } from "@/lib/types/warranty"
 import { ArrowLeft, ChevronRight, Plus, Paperclip, RotateCcw, AlertTriangle, Calendar } from "lucide-react"
 
 interface TicketDetailClientProps {
@@ -30,6 +31,8 @@ interface TicketDetailClientProps {
   userRole: Role
   userId: string
   userName: string
+  nextTransitionChecklist: NextTransitionChecklist
+  stageSummaryMap: Record<Status, StageSummary>
 }
 
 export function TicketDetailClient({
@@ -42,6 +45,8 @@ export function TicketDetailClient({
   userRole,
   userId,
   userName,
+  nextTransitionChecklist,
+  stageSummaryMap,
 }: TicketDetailClientProps) {
   const router = useRouter()
   const permissions = getUserPermissions(userRole)
@@ -49,6 +54,8 @@ export function TicketDetailClient({
   const [ticket, setTicket] = useState(initialTicket)
   const [timeline, setTimeline] = useState(initialTimeline)
   const [attachments, setAttachments] = useState(initialAttachments)
+  const [transitionChecklist, setTransitionChecklist] = useState(nextTransitionChecklist)
+  const [stageSummary, setStageSummary] = useState(stageSummaryMap)
 
   const [showAdvanceDialog, setShowAdvanceDialog] = useState(false)
   const [showRevertDialog, setShowRevertDialog] = useState(false)
@@ -56,8 +63,9 @@ export function TicketDetailClient({
   const [showAttachmentDialog, setShowAttachmentDialog] = useState(false)
   const [showSupplierDialog, setShowSupplierDialog] = useState(false)
 
-  const canAdvance = canUserAdvanceStatus(userRole, ticket.status)
-  const stageReq = STAGE_REQUIREMENTS[ticket.status]
+  const canAdvance = transitionChecklist.canAdvance
+  const nextStatus = transitionChecklist.nextStatus
+  const roleBlocked = !canAdvance && transitionChecklist.items.every((item) => item.satisfied)
 
   const isOverdue = ticket.dueDate && new Date(ticket.dueDate) < new Date() && ticket.status !== "ENCERRADO"
   const hasNextAction = ticket.nextActionAt && new Date(ticket.nextActionAt) <= new Date()
@@ -69,6 +77,8 @@ export function TicketDetailClient({
       setTicket(data.ticket)
       setTimeline(data.timeline)
       setAttachments(data.attachments)
+      setTransitionChecklist(data.nextTransitionChecklist)
+      setStageSummary(data.stageSummaryMap)
     }
   }
 
@@ -121,7 +131,7 @@ export function TicketDetailClient({
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 flex-wrap">
-            {canAdvance && stageReq.nextStatus && (
+            {nextStatus && !roleBlocked && (
               <Button size="sm" onClick={() => setShowAdvanceDialog(true)}>
                 Avançar etapa
                 <ChevronRight className="h-4 w-4 ml-1" />
@@ -154,7 +164,7 @@ export function TicketDetailClient({
 
       {/* Stepper */}
       <div className="p-4 border-b border-border bg-muted/30">
-        <Stepper currentStatus={ticket.status} stageHistory={ticket.stageHistory} />
+        <Stepper currentStatus={ticket.status} stageHistory={ticket.stageHistory} stageSummaryMap={stageSummary} />
       </div>
 
       {/* Tabs */}
@@ -205,6 +215,9 @@ export function TicketDetailClient({
         ticket={ticket}
         suppliers={suppliers}
         onSuccess={refreshData}
+        checklist={transitionChecklist}
+        onRequestSupplier={() => setShowSupplierDialog(true)}
+        onRequestAttachment={() => setShowAttachmentDialog(true)}
       />
 
       <RevertStageDialog

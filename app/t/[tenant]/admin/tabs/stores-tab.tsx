@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,10 +15,11 @@ import type { Store } from "@/lib/schemas"
 
 interface StoresTabProps {
   stores: Store[]
-  onRefresh: () => void
+  onRefresh?: () => void
 }
 
 export function StoresTab({ stores, onRefresh }: StoresTabProps) {
+  const router = useRouter()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingStore, setEditingStore] = useState<Store | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -69,7 +71,7 @@ export function StoresTab({ stores, onRefresh }: StoresTabProps) {
 
       setIsDialogOpen(false)
       resetForm()
-      onRefresh()
+      onRefresh ? onRefresh() : router.refresh()
     } catch (error) {
       console.error("Error saving store:", error)
     } finally {
@@ -84,7 +86,7 @@ export function StoresTab({ stores, onRefresh }: StoresTabProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !store.active }),
       })
-      onRefresh()
+      onRefresh ? onRefresh() : router.refresh()
     } catch (error) {
       console.error("Error toggling store:", error)
     }

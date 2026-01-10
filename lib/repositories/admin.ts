@@ -1,4 +1,4 @@
-import { adminDb, adminAuth } from "../firebase/admin"
+import { getAdminAuth, getAdminDb } from "../firebase/admin"
 import type { User, Store, Supplier, TenantSettings } from "../schemas"
 import type { FirebaseFirestore } from "firebase-admin/firestore"
 
@@ -11,7 +11,7 @@ function toDate(timestamp: { toDate: () => Date } | Date | undefined): Date | un
 
 // Users
 export async function listUsers(tenantId: string): Promise<User[]> {
-  const snapshot = await adminDb.collection("users").where("tenantId", "==", tenantId).orderBy("name").get()
+  const snapshot = await getAdminDb().collection("users").where("tenantId", "==", tenantId).orderBy("name").get()
 
   return snapshot.docs.map((doc) => {
     const data = doc.data()
@@ -34,7 +34,7 @@ export async function createUser(
   temporaryPassword: string,
 ): Promise<{ userId: string; temporaryPassword: string }> {
   // Create Firebase Auth user
-  const userRecord = await adminAuth.createUser({
+  const userRecord = await getAdminAuth().createUser({
     email: data.email,
     password: temporaryPassword,
     displayName: data.name,
@@ -43,7 +43,7 @@ export async function createUser(
   const now = new Date()
 
   // Create Firestore user document
-  await adminDb
+  await getAdminDb()
     .collection("users")
     .doc(userRecord.uid)
     .set({
@@ -59,7 +59,7 @@ export async function createUser(
 export async function updateUser(userId: string, data: Partial<User>): Promise<void> {
   const now = new Date()
 
-  await adminDb
+  await getAdminDb()
     .collection("users")
     .doc(userId)
     .update({
@@ -69,21 +69,21 @@ export async function updateUser(userId: string, data: Partial<User>): Promise<v
 
   // Update Auth if email changed
   if (data.email) {
-    await adminAuth.updateUser(userId, { email: data.email })
+    await getAdminAuth().updateUser(userId, { email: data.email })
   }
 
   if (data.name) {
-    await adminAuth.updateUser(userId, { displayName: data.name })
+    await getAdminAuth().updateUser(userId, { displayName: data.name })
   }
 }
 
 export async function generatePasswordResetLink(email: string): Promise<string> {
-  return adminAuth.generatePasswordResetLink(email)
+  return getAdminAuth().generatePasswordResetLink(email)
 }
 
 // Stores
 export async function listStores(tenantId: string): Promise<Store[]> {
-  const snapshot = await adminDb.collection("stores").where("tenantId", "==", tenantId).orderBy("name").get()
+  const snapshot = await getAdminDb().collection("stores").where("tenantId", "==", tenantId).orderBy("name").get()
 
   return snapshot.docs.map((doc) => {
     const data = doc.data()
@@ -91,6 +91,9 @@ export async function listStores(tenantId: string): Promise<Store[]> {
       id: doc.id,
       name: data.name,
       code: data.code,
+      cnpj: data.cnpj,
+      address: data.address,
+      phone: data.phone,
       tenantId: data.tenantId,
       active: data.active,
       createdAt: toDate(data.createdAt)!,
@@ -101,7 +104,7 @@ export async function listStores(tenantId: string): Promise<Store[]> {
 
 export async function createStore(data: Omit<Store, "id" | "createdAt" | "updatedAt">): Promise<string> {
   const now = new Date()
-  const docRef = await adminDb.collection("stores").add({
+  const docRef = await getAdminDb().collection("stores").add({
     ...data,
     createdAt: now,
     updatedAt: now,
@@ -110,7 +113,7 @@ export async function createStore(data: Omit<Store, "id" | "createdAt" | "update
 }
 
 export async function updateStore(storeId: string, data: Partial<Store>): Promise<void> {
-  await adminDb
+  await getAdminDb()
     .collection("stores")
     .doc(storeId)
     .update({
@@ -121,7 +124,7 @@ export async function updateStore(storeId: string, data: Partial<Store>): Promis
 
 // Suppliers
 export async function listSuppliers(tenantId: string): Promise<Supplier[]> {
-  const snapshot = await adminDb.collection("suppliers").where("tenantId", "==", tenantId).orderBy("name").get()
+  const snapshot = await getAdminDb().collection("suppliers").where("tenantId", "==", tenantId).orderBy("name").get()
 
   return snapshot.docs.map((doc) => {
     const data = doc.data()
@@ -129,6 +132,7 @@ export async function listSuppliers(tenantId: string): Promise<Supplier[]> {
       id: doc.id,
       name: data.name,
       slaDays: data.slaDays,
+      cnpj: data.cnpj,
       phone: data.phone,
       email: data.email,
       tenantId: data.tenantId,
@@ -139,15 +143,17 @@ export async function listSuppliers(tenantId: string): Promise<Supplier[]> {
   })
 }
 
-export async function getSupplierById(supplierId: string): Promise<Supplier | null> {
-  const doc = await adminDb.collection("suppliers").doc(supplierId).get()
+export async function getSupplierById(supplierId: string, tenantId: string): Promise<Supplier | null> {
+  const doc = await getAdminDb().collection("suppliers").doc(supplierId).get()
   if (!doc.exists) return null
 
   const data = doc.data()!
+  if (data.tenantId !== tenantId) return null
   return {
     id: doc.id,
     name: data.name,
     slaDays: data.slaDays,
+    cnpj: data.cnpj,
     phone: data.phone,
     email: data.email,
     tenantId: data.tenantId,
@@ -159,7 +165,7 @@ export async function getSupplierById(supplierId: string): Promise<Supplier | nu
 
 export async function createSupplier(data: Omit<Supplier, "id" | "createdAt" | "updatedAt">): Promise<string> {
   const now = new Date()
-  const docRef = await adminDb.collection("suppliers").add({
+  const docRef = await getAdminDb().collection("suppliers").add({
     ...data,
     createdAt: now,
     updatedAt: now,
@@ -168,7 +174,7 @@ export async function createSupplier(data: Omit<Supplier, "id" | "createdAt" | "
 }
 
 export async function updateSupplier(supplierId: string, data: Partial<Supplier>): Promise<void> {
-  await adminDb
+  await getAdminDb()
     .collection("suppliers")
     .doc(supplierId)
     .update({
@@ -179,7 +185,7 @@ export async function updateSupplier(supplierId: string, data: Partial<Supplier>
 
 // Tenant Settings
 export async function getTenantSettings(tenantId: string): Promise<TenantSettings | null> {
-  const doc = await adminDb.collection("tenants").doc(tenantId).get()
+  const doc = await getAdminDb().collection("tenants").doc(tenantId).get()
   if (!doc.exists) return null
 
   const data = doc.data()!
@@ -201,7 +207,7 @@ export async function getTenantSettings(tenantId: string): Promise<TenantSetting
 }
 
 export async function getTenantBySlug(slug: string): Promise<TenantSettings | null> {
-  const snapshot = await adminDb.collection("tenants").where("slug", "==", slug).limit(1).get()
+  const snapshot = await getAdminDb().collection("tenants").where("slug", "==", slug).limit(1).get()
 
   if (snapshot.empty) return null
 
@@ -226,7 +232,7 @@ export async function getTenantBySlug(slug: string): Promise<TenantSettings | nu
 }
 
 export async function updateTenantSettings(tenantId: string, data: Partial<TenantSettings>): Promise<void> {
-  await adminDb
+  await getAdminDb()
     .collection("tenants")
     .doc(tenantId)
     .update({
@@ -249,7 +255,7 @@ export async function getGlobalAudit(
 ): Promise<Array<{ ticketId: string; entries: Array<Record<string, unknown>> }>> {
   // This would require a more complex query structure
   // For now, we'll fetch from individual ticket audit collections
-  const ticketsSnapshot = await adminDb
+  const ticketsSnapshot = await getAdminDb()
     .collection("tickets")
     .where("tenantId", "==", tenantId)
     .orderBy("createdAt", "desc")
@@ -259,7 +265,7 @@ export async function getGlobalAudit(
   const results: Array<{ ticketId: string; entries: Array<Record<string, unknown>> }> = []
 
   for (const ticketDoc of ticketsSnapshot.docs) {
-    let auditQuery: FirebaseFirestore.Query = adminDb
+    let auditQuery: FirebaseFirestore.Query = getAdminDb()
       .collection("tickets")
       .doc(ticketDoc.id)
       .collection("audit")

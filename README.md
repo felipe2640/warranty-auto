@@ -1,30 +1,83 @@
-# Warranty system build
+# Warranty Auto (SaaS de Garantias)
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+## Índice
+- [Visão geral](#visão-geral)
+- [Stack](#stack)
+- [Quickstart (local)](#quickstart-local)
+- [Estrutura do repositório](#estrutura-do-repositório)
+- [Segurança, multi-tenant e RBAC](#segurança-multi-tenant-e-rbac)
+- [Performance mobile](#performance-mobile)
+- [Documentação detalhada](#documentação-detalhada)
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/felipe2640s-projects/v0-warranty-system-build)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/oo7pDXuxgaU)
+## Visão geral
+O sistema gerencia **garantias por etapas** com fluxo guiado, **agenda de cobrança** e **anexos armazenados no Google Drive**. É multi-tenant via rota `/t/[tenant]` e possui RBAC por papéis.
 
-## Overview
+### Principais fluxos
+- **Abertura de ticket no balcão (mobile)**: criação de ticket com assinatura e anexos.
+- **Avanço de etapas com checklist**: requisitos server-side para avançar (fornecedor, canhoto, resposta, resultado final).
+- **Timeline/agenda de cobrança**: ações por data com filtros server-side e paginação.
+- **Resolução e encerramento**: registro de resultado (`CREDITO`, `TROCA`, `NEGOU`) e fechamento.
+- **Administração**: usuários, lojas, fornecedores, auditoria e configurações do tenant.
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+## Stack
+- **Next.js App Router + TypeScript**: UI e API routes.
+- **Firebase Auth + session cookie**: autenticação com cookie de sessão server-side.
+- **Firestore**: persistência de dados multi-tenant.
+- **Google Drive API (service account)**: anexos e assinatura.
+- **Tailwind + shadcn/ui + lucide-react + react-hook-form + zod**: UI e validação.
 
-## Deployment
+## Quickstart (local)
+1) Instalar dependências:
+```bash
+pnpm install
+```
 
-Your project is live at:
+2) Criar `.env.local` a partir de `.env.example`.
 
-**[https://vercel.com/felipe2640s-projects/v0-warranty-system-build](https://vercel.com/felipe2640s-projects/v0-warranty-system-build)**
+3) Rodar o servidor:
+```bash
+pnpm dev
+```
 
-## Build your app
+4) Criar tenant e admin inicial:
+- Crie um documento em `tenants` com `slug`, `name` e `driveRootFolderId`.
+- Crie um usuário `ADMIN` em `users` com `tenantId` correspondente.
+- Configure `serviceAccountEmail` no tenant (opcional, exibido na UI de Admin).
 
-Continue building your app on:
+> Detalhes completos em `docs/SETUP.md`.
 
-**[https://v0.app/chat/oo7pDXuxgaU](https://v0.app/chat/oo7pDXuxgaU)**
+## Estrutura do repositório
+```
+app/                    # Rotas Next.js (pages e API)
+  api/                 # API routes
+  t/[tenant]/          # Área autenticada multi-tenant
+components/             # Componentes UI e layout
+lib/                    # Camadas de domínio e serviços
+  firebase/            # Firebase Admin e Client
+  drive/               # Google Drive API
+  repositories/        # Acesso a dados (Firestore)
+  services/            # Regras de negócio
+  session.ts           # Sessão e autenticação
+  schemas.ts           # Zod schemas, enums
+  search.ts            # Search tokens
+```
 
-## How It Works
+## Segurança, multi-tenant e RBAC
+- **Resolução de tenant**: `/t/[tenant]` → `tenantId` via slug.
+- **Validação de tenant**: queries server-side sempre filtram por `tenantId`.
+- **RBAC**: permissões controlam UI e backend (ADMIN, COBRANCA, LOGISTICA, INTERNO, RECEBEDOR).
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+## Performance mobile
+- **Paginação** em listagens (tickets/agenda).
+- **Sem filtros pesados em memória**: consultas server-side.
+- **Uploads sob demanda** e preview leve.
+- **Stepper/tabs** com rendering condicional.
+
+## Documentação detalhada
+- [docs/SETUP.md](docs/SETUP.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/TENANCY_RBAC.md](docs/TENANCY_RBAC.md)
+- [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md)
+- [docs/GOOGLE_DRIVE.md](docs/GOOGLE_DRIVE.md)
+- [docs/FIREBASE.md](docs/FIREBASE.md)
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)

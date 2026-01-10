@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/session"
 import { getFileStream, getFileMetadata } from "@/lib/drive/client"
+import { findAttachmentByDriveFileId } from "@/lib/repositories/tickets"
+import { RoleEnum } from "@/lib/roles"
 
 export async function GET(request: Request, { params }: { params: Promise<{ driveFileId: string }> }) {
   try {
@@ -9,9 +11,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ driv
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const roleValidation = RoleEnum.safeParse(session.role)
+    if (!roleValidation.success) {
+      return NextResponse.json({ error: "Permission denied" }, { status: 403 })
+    }
+
     const { driveFileId } = await params
 
-    // Get file metadata
+    const attachment = await findAttachmentByDriveFileId(driveFileId)
+    if (!attachment || attachment.tenantId !== session.tenantId) {
+      return NextResponse.json({ error: "Arquivo não encontrado" }, { status: 404 })
+    }
+
     const metadata = await getFileMetadata(driveFileId)
 
     // Stream file from Drive
