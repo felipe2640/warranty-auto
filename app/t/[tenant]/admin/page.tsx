@@ -80,7 +80,7 @@ export default async function AdminPage({ params }: { params: Promise<{ tenant: 
                 <CardHeader>
                   <CardTitle>Configurações</CardTitle>
                 </CardHeader>
-                <CardContent>{settings.driveRootFolderId ? \"Drive configurado\" : \"Drive pendente\"}</CardContent>
+                <CardContent>{settings.driveRootFolderId ? "Drive configurado" : "Drive pendente"}</CardContent>
               </Card>
             </Link>
             <Link href={`/t/${tenant}/admin/audit`}>
