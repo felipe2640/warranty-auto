@@ -11,7 +11,7 @@ import {
   getSupplierById,
   updateTenantSettings,
 } from "@/lib/repositories/admin"
-import { adminAuth, adminDb } from "@/lib/firebase/admin"
+import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin"
 import type { TenantSettings, Store, Supplier, User } from "@/lib/schemas"
 import { driveClient } from "@/lib/drive/client"
 
@@ -40,7 +40,7 @@ export async function fetchSupplierById(tenantId: string, supplierId: string): P
 }
 
 export async function fetchOpenTicketsCount(tenantId: string) {
-  const snapshot = await adminDb
+  const snapshot = await getAdminDb()
     .collection("tickets")
     .where("tenantId", "==", tenantId)
     .where("status", "!=", "ENCERRADO")
@@ -63,7 +63,7 @@ export async function createAdminUser(options: {
   storeId?: string | null
   createdBy: string
 }) {
-  const userRecord = await adminAuth.createUser({
+  const userRecord = await getAdminAuth().createUser({
     email: options.email,
     password: options.password,
     displayName: options.name,
@@ -80,9 +80,9 @@ export async function createAdminUser(options: {
     createdBy: options.createdBy,
   }
 
-  await adminDb.collection("users").doc(userRecord.uid).set(userData)
+  await getAdminDb().collection("users").doc(userRecord.uid).set(userData)
 
-  await adminAuth.setCustomUserClaims(userRecord.uid, {
+  await getAdminAuth().setCustomUserClaims(userRecord.uid, {
     tenantId: options.tenantId,
     role: options.role,
   })
@@ -96,7 +96,7 @@ export async function updateAdminUser(options: {
   updates: Record<string, unknown>
   actorId: string
 }) {
-  const userDoc = await adminDb.collection("users").doc(options.userId).get()
+  const userDoc = await getAdminDb().collection("users").doc(options.userId).get()
   if (!userDoc.exists || userDoc.data()?.tenantId !== options.tenantId) {
     return null
   }
@@ -108,33 +108,33 @@ export async function updateAdminUser(options: {
   }
 
   if (options.updates.name) {
-    await adminAuth.updateUser(options.userId, { displayName: options.updates.name as string })
+    await getAdminAuth().updateUser(options.userId, { displayName: options.updates.name as string })
   }
 
   if (options.updates.role) {
-    await adminAuth.setCustomUserClaims(options.userId, {
+    await getAdminAuth().setCustomUserClaims(options.userId, {
       tenantId: options.tenantId,
       role: options.updates.role as string,
     })
   }
 
   if (options.updates.active !== undefined) {
-    await adminAuth.updateUser(options.userId, { disabled: !(options.updates.active as boolean) })
+    await getAdminAuth().updateUser(options.userId, { disabled: !(options.updates.active as boolean) })
   }
 
-  await adminDb.collection("users").doc(options.userId).update(updates)
+  await getAdminDb().collection("users").doc(options.userId).update(updates)
 
   return { success: true }
 }
 
 export async function deleteAdminUser(options: { tenantId: string; userId: string; actorId: string }) {
-  const userDoc = await adminDb.collection("users").doc(options.userId).get()
+  const userDoc = await getAdminDb().collection("users").doc(options.userId).get()
   if (!userDoc.exists || userDoc.data()?.tenantId !== options.tenantId) {
     return null
   }
 
-  await adminAuth.updateUser(options.userId, { disabled: true })
-  await adminDb.collection("users").doc(options.userId).update({
+  await getAdminAuth().updateUser(options.userId, { disabled: true })
+  await getAdminDb().collection("users").doc(options.userId).update({
     active: false,
     deletedAt: new Date(),
     deletedBy: options.actorId,
@@ -144,7 +144,7 @@ export async function deleteAdminUser(options: { tenantId: string; userId: strin
 }
 
 export async function generateUserPasswordResetLink(options: { tenantId: string; userId: string }) {
-  const userDoc = await adminDb.collection("users").doc(options.userId).get()
+  const userDoc = await getAdminDb().collection("users").doc(options.userId).get()
   if (!userDoc.exists || userDoc.data()?.tenantId !== options.tenantId) {
     return null
   }
@@ -154,7 +154,7 @@ export async function generateUserPasswordResetLink(options: { tenantId: string;
     return { error: "Email do usuário não encontrado" }
   }
 
-  const resetLink = await adminAuth.generatePasswordResetLink(email)
+  const resetLink = await getAdminAuth().generatePasswordResetLink(email)
   return { resetLink }
 }
 
@@ -167,7 +167,7 @@ export async function createAdminStore(options: { tenantId: string; data: Omit<S
 }
 
 export async function updateAdminStore(options: { tenantId: string; storeId: string; updates: Partial<Store> }) {
-  const doc = await adminDb.collection("stores").doc(options.storeId).get()
+  const doc = await getAdminDb().collection("stores").doc(options.storeId).get()
   if (!doc.exists || doc.data()?.tenantId !== options.tenantId) {
     return null
   }
@@ -189,7 +189,7 @@ export async function createAdminSupplier(options: {
 }
 
 export async function updateAdminSupplier(options: { tenantId: string; supplierId: string; updates: Partial<Supplier> }) {
-  const doc = await adminDb.collection("suppliers").doc(options.supplierId).get()
+  const doc = await getAdminDb().collection("suppliers").doc(options.supplierId).get()
   if (!doc.exists || doc.data()?.tenantId !== options.tenantId) {
     return null
   }
@@ -214,7 +214,7 @@ export async function fetchAdminAuditEntries(options: {
   action?: string | null
   userId?: string | null
 }) {
-  let query = adminDb
+  let query = getAdminDb()
     .collectionGroup("audit")
     .where("tenantId", "==", options.tenantId)
     .orderBy("createdAt", "desc")

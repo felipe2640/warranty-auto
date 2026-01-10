@@ -7,6 +7,8 @@ import type { TenantSettings } from "@/lib/schemas"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
+export const dynamic = "force-dynamic"
+
 export default async function AdminPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const { session, tenantId } = await requireTenantSession(tenant)

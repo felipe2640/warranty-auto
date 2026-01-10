@@ -4,6 +4,8 @@ import { ADMIN_ROLE } from "@/lib/roles"
 import { AppLayout } from "@/components/app-layout"
 import { AuditTab } from "../tabs/audit-tab"
 
+export const dynamic = "force-dynamic"
+
 export default async function AdminAuditPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const { session } = await requireTenantSession(tenant)

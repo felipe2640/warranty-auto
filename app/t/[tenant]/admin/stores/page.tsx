@@ -5,6 +5,8 @@ import { fetchStores } from "@/lib/services/adminService"
 import { AppLayout } from "@/components/app-layout"
 import { StoresTab } from "../tabs/stores-tab"
 
+export const dynamic = "force-dynamic"
+
 export default async function AdminStoresPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const { session } = await requireTenantSession(tenant)

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/session"
-import { adminDb } from "@/lib/firebase/admin"
+import { getAdminDb } from "@/lib/firebase/admin"
 import type { Ticket, Status } from "@/lib/schemas"
 import type { FirebaseFirestore } from "firebase-admin/firestore"
 
@@ -11,7 +11,7 @@ export async function GET() {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
-    const ticketsRef = adminDb.collection("tickets")
+    const ticketsRef = getAdminDb().collection("tickets")
     let query: FirebaseFirestore.Query = ticketsRef.where("tenantId", "==", session.tenantId)
 
     // Operators can only see their store's tickets

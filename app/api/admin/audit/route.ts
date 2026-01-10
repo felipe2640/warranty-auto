@@ -3,6 +3,8 @@ import { requireAuth } from "@/lib/session"
 import { ADMIN_ROLE } from "@/lib/roles"
 import { fetchAdminAuditEntries } from "@/lib/services/adminService"
 
+export const dynamic = "force-dynamic"
+
 export async function GET(request: Request) {
   try {
     const session = await requireAuth()

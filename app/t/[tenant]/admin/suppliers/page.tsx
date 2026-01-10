@@ -5,6 +5,8 @@ import { fetchSuppliers } from "@/lib/services/adminService"
 import { AppLayout } from "@/components/app-layout"
 import { SuppliersTab } from "../tabs/suppliers-tab"
 
+export const dynamic = "force-dynamic"
+
 export default async function AdminSuppliersPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const { session } = await requireTenantSession(tenant)

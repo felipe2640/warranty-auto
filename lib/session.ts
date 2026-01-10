@@ -1,5 +1,5 @@
 import { cookies } from "next/headers"
-import { adminAuth, adminDb } from "./firebase/admin"
+import { getAdminAuth, getAdminDb } from "./firebase/admin"
 import type { User } from "./schemas"
 import type { Role } from "./roles"
 
@@ -16,10 +16,10 @@ export async function getSession(): Promise<SessionUser | null> {
   }
 
   try {
-    const decodedClaims = await adminAuth.verifySessionCookie(sessionCookie, true)
+    const decodedClaims = await getAdminAuth().verifySessionCookie(sessionCookie, true)
 
     // Get user data from Firestore
-    const userDoc = await adminDb.collection("users").doc(decodedClaims.uid).get()
+    const userDoc = await getAdminDb().collection("users").doc(decodedClaims.uid).get()
 
     if (!userDoc.exists) {
       return null
@@ -49,7 +49,7 @@ export async function requireTenantSession(tenantSlug: string) {
   const session = await requireSession()
 
   // Verify user belongs to this tenant
-  const tenantDoc = await adminDb.collection("tenants").where("slug", "==", tenantSlug).limit(1).get()
+  const tenantDoc = await getAdminDb().collection("tenants").where("slug", "==", tenantSlug).limit(1).get()
 
   if (tenantDoc.empty) {
     throw new Error("Tenant not found")

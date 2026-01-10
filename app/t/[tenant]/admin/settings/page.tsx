@@ -6,6 +6,8 @@ import { AppLayout } from "@/components/app-layout"
 import { SettingsTab } from "../tabs/settings-tab"
 import type { TenantSettings } from "@/lib/schemas"
 
+export const dynamic = "force-dynamic"
+
 export default async function AdminSettingsPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const { session } = await requireTenantSession(tenant)
