@@ -28,30 +28,7 @@ import {
   type Ticket,
   type TimelineEntry,
 } from "@/lib/schemas"
-
-export interface TransitionChecklistItem {
-  key: "supplierId" | "canhoto" | "supplierResponse" | "resolutionResult"
-  label: string
-  satisfied: boolean
-  cta?: {
-    type: "supplier" | "attachment" | "supplierResponse" | "resolution"
-    label: string
-  }
-}
-
-export interface NextTransitionChecklist {
-  nextStatus: Status | null
-  canAdvance: boolean
-  items: TransitionChecklistItem[]
-}
-
-export interface StageSummary {
-  status: Status
-  at?: Date
-  byName?: string
-  lastNote?: string
-  attachmentsPreview: Array<Pick<Attachment, "id" | "name" | "category" | "driveFileId" | "uploadedAt">>
-}
+import type { NextTransitionChecklist, StageSummary, TransitionChecklistItem } from "@/lib/types/warranty"
 
 function buildTransitionChecklist(options: {
   ticket: Ticket

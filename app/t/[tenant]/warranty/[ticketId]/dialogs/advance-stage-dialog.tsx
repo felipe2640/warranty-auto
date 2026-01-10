@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { StatusBadge } from "@/components/ui/status-badge"
 import type { Ticket, Supplier, Status } from "@/lib/schemas"
-import type { NextTransitionChecklist, TransitionChecklistItem } from "@/lib/services/warrantyService"
+import type { NextTransitionChecklist, TransitionChecklistItem } from "@/lib/types/warranty"
 import { Loader2, AlertCircle, ChevronRight, Check, X } from "lucide-react"
 
 interface AdvanceStageDialogProps {

@@ -186,4 +186,8 @@ export function AddAttachmentDialog({ open, onOpenChange, ticketId, canAttachCan
               "Anexar"
             )}
           </Button>
-        </Dialog\
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

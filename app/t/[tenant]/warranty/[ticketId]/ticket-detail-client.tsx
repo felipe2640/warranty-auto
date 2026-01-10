@@ -18,7 +18,7 @@ import { AddAttachmentDialog } from "./dialogs/add-attachment-dialog"
 import { SetSupplierDialog } from "./dialogs/set-supplier-dialog"
 import { getUserPermissions } from "@/lib/permissions"
 import type { Ticket, TimelineEntry, Attachment, AuditEntry, Supplier, Role, Status } from "@/lib/schemas"
-import type { NextTransitionChecklist, StageSummary } from "@/lib/services/warrantyService"
+import type { NextTransitionChecklist, StageSummary } from "@/lib/types/warranty"
 import { ArrowLeft, ChevronRight, Plus, Paperclip, RotateCcw, AlertTriangle, Calendar } from "lucide-react"
 
 interface TicketDetailClientProps {
