@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/session"
-import { getTenantBySlug } from "@/lib/repositories/admin"
+import { fetchTenantBySlug } from "@/lib/services/adminService"
 import { redirect } from "next/navigation"
 import { LoginForm } from "./login-form"
 
@@ -11,7 +11,7 @@ export default async function LoginPage({ params }: LoginPageProps) {
   const { tenant } = await params
 
   // Check if tenant exists
-  const tenantSettings = await getTenantBySlug(tenant)
+  const tenantSettings = await fetchTenantBySlug(tenant)
 
   if (!tenantSettings) {
     return (

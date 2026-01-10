@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/session"
-import { driveClient } from "@/lib/drive/client"
+import { ADMIN_ROLE } from "@/lib/roles"
+import { testDriveAccess } from "@/lib/services/adminService"
 
 export async function POST(request: Request) {
   try {
     const session = await requireAuth()
-    if (session.role !== "ADMIN") {
+    if (session.role !== ADMIN_ROLE) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
     }
 
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
     }
 
     // Try to list files in the folder to test access
-    const result = await driveClient.testAccess(folderId)
+    const result = await testDriveAccess(folderId)
 
     if (result.success) {
       return NextResponse.json({ success: true, message: "Conexão bem sucedida! Acesso confirmado." })

@@ -2,6 +2,7 @@ import { adminDb } from "../firebase/admin"
 import { createFolder, uploadFile } from "../drive/client"
 import type { Ticket, Attachment, TimelineEntry, AuditEntry, Status } from "../schemas"
 import { STATUS_ORDER } from "../schemas"
+import { buildSearchTokens, normalizeSearchToken } from "@/lib/search"
 import type * as FirebaseFirestore from "firebase-admin/firestore"
 
 const TICKETS_COLLECTION = "tickets"
@@ -54,10 +55,13 @@ function serializeTicket(doc: FirebaseFirestore.DocumentSnapshot): Ticket | null
     nextActionAt: toDate(data.nextActionAt),
     nextActionNote: data.nextActionNote,
     deliveredToSupplierAt: toDate(data.deliveredToSupplierAt),
+    supplierResponse: data.supplierResponse,
     resolutionResult: data.resolutionResult,
     resolutionNotes: data.resolutionNotes,
     closedAt: toDate(data.closedAt),
     driveFolderId: data.driveFolderId,
+    searchTokens: data.searchTokens,
+    isClosed: data.isClosed ?? data.status === "ENCERRADO",
     createdBy: data.createdBy,
     createdAt: toDate(data.createdAt)!,
     updatedAt: toDate(data.updatedAt)!,
@@ -93,6 +97,15 @@ export async function createTicket(
     driveFolderId: folderId,
     createdAt: now,
     updatedAt: now,
+    isClosed: false,
+    searchTokens: buildSearchTokens({
+      nomeRazaoSocial: data.nomeRazaoSocial,
+      cpfCnpj: data.cpfCnpj,
+      celular: data.celular,
+      numeroVendaOuCfe: data.numeroVendaOuCfe,
+      codigo: data.codigo,
+      ref: data.ref,
+    }),
     stageHistory: [
       {
         status: "RECEBIMENTO",
@@ -151,6 +164,7 @@ export async function updateTicketStatus(
       status: newStatus,
       stageHistory,
       updatedAt: now,
+      isClosed: newStatus === "ENCERRADO",
       ...additionalData,
     })
 
@@ -176,6 +190,7 @@ export async function updateTicketStatus(
     toStatus: newStatus,
     userId,
     userName,
+    tenantId: ticket.tenantId,
     createdAt: now,
   })
 }
@@ -201,6 +216,7 @@ export async function revertTicketStatus(
 
   await adminDb.collection(TICKETS_COLLECTION).doc(ticketId).update({
     status: targetStatus,
+    isClosed: targetStatus === "ENCERRADO",
     updatedAt: now,
   })
 
@@ -213,6 +229,7 @@ export async function revertTicketStatus(
     userId,
     userName,
     reason,
+    tenantId: ticket.tenantId,
     createdAt: now,
   })
 
@@ -260,7 +277,24 @@ export async function listTickets(options: ListTicketsOptions): Promise<{ ticket
     query = query.where("supplierId", "==", options.supplierId)
   }
 
-  query = query.orderBy("createdAt", "desc")
+  if (options.onlyOverdue) {
+    query = query.where("isClosed", "==", false).where("dueDate", "<", new Date()).orderBy("dueDate", "asc")
+  } else if (options.onlyActionToday) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    query = query.where("nextActionAt", ">=", today).where("nextActionAt", "<", tomorrow).orderBy("nextActionAt", "asc")
+  } else {
+    query = query.orderBy("createdAt", "desc")
+  }
+
+  if (options.search) {
+    const token = normalizeSearchToken(options.search)
+    if (token) {
+      query = query.where("searchTokens", "array-contains", token)
+    }
+  }
 
   const limit = options.limit || 20
   query = query.limit(limit + 1) // Fetch one extra to check if there are more
@@ -274,41 +308,9 @@ export async function listTickets(options: ListTicketsOptions): Promise<{ ticket
 
   const snapshot = await query.get()
   const tickets = snapshot.docs.slice(0, limit).map((doc) => serializeTicket(doc)!)
-
-  // Filter in memory for complex queries
-  let filteredTickets = tickets
-
-  if (options.onlyOverdue) {
-    const now = new Date()
-    filteredTickets = filteredTickets.filter((t) => t.dueDate && t.dueDate < now && t.status !== "ENCERRADO")
-  }
-
-  if (options.onlyActionToday) {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-
-    filteredTickets = filteredTickets.filter(
-      (t) => t.nextActionAt && t.nextActionAt >= today && t.nextActionAt < tomorrow,
-    )
-  }
-
-  if (options.search) {
-    const searchLower = options.search.toLowerCase()
-    filteredTickets = filteredTickets.filter(
-      (t) =>
-        t.nomeRazaoSocial.toLowerCase().includes(searchLower) ||
-        t.cpfCnpj.includes(searchLower) ||
-        t.celular.includes(searchLower) ||
-        t.numeroVendaOuCfe.includes(searchLower) ||
-        (t.codigo && t.codigo.includes(searchLower)),
-    )
-  }
-
   const nextCursor = snapshot.docs.length > limit ? snapshot.docs[limit - 1].id : undefined
 
-  return { tickets: filteredTickets, nextCursor }
+  return { tickets, nextCursor }
 }
 
 export async function getTicketTimeline(ticketId: string): Promise<TimelineEntry[]> {
@@ -444,6 +446,7 @@ export async function addAttachment(
       userId: metadata.uploadedBy,
       userName: metadata.uploadedByName,
       metadata: { fileName: metadata.name, category: metadata.category },
+      tenantId: ticket.tenantId,
       createdAt: now,
     })
 
@@ -473,6 +476,75 @@ export async function getTicketAudit(ticketId: string): Promise<AuditEntry[]> {
       createdAt: toDate(data.createdAt)!,
     }
   })
+}
+
+export async function findAttachmentByDriveFileId(driveFileId: string): Promise<{
+  ticketId: string
+  tenantId: string
+} | null> {
+  const snapshot = await adminDb
+    .collectionGroup(ATTACHMENTS_COLLECTION)
+    .where("driveFileId", "==", driveFileId)
+    .limit(1)
+    .get()
+
+  if (snapshot.empty) {
+    return null
+  }
+
+  const attachmentDoc = snapshot.docs[0]
+  const ticketRef = attachmentDoc.ref.parent.parent
+
+  if (!ticketRef) {
+    return null
+  }
+
+  const ticketDoc = await ticketRef.get()
+  if (!ticketDoc.exists) {
+    return null
+  }
+
+  const data = ticketDoc.data() as Ticket
+  return {
+    ticketId: ticketDoc.id,
+    tenantId: data.tenantId,
+  }
+}
+
+export async function listTicketsByNextActionRange(options: {
+  tenantId: string
+  statuses?: Status[]
+  start: Date
+  end: Date
+  limit?: number
+  startAfter?: string
+}): Promise<{ tickets: Ticket[]; nextCursor?: string }> {
+  let query: FirebaseFirestore.Query = adminDb
+    .collection(TICKETS_COLLECTION)
+    .where("tenantId", "==", options.tenantId)
+    .where("nextActionAt", ">=", options.start)
+    .where("nextActionAt", "<=", options.end)
+    .orderBy("nextActionAt", "asc")
+
+  if (options.statuses?.length) {
+    query = query.where("status", "in", options.statuses)
+  }
+
+  const limit = options.limit || 20
+  query = query.limit(limit + 1)
+
+  if (options.startAfter) {
+    const startAfterDoc = await adminDb.collection(TICKETS_COLLECTION).doc(options.startAfter).get()
+    if (startAfterDoc.exists) {
+      query = query.startAfter(startAfterDoc)
+    }
+  }
+
+  const snapshot = await query.get()
+  const tickets = snapshot.docs.slice(0, limit).map((doc) => serializeTicket(doc)!)
+  const nextCursor = snapshot.docs.length > limit ? snapshot.docs[limit - 1].id : undefined
+
+  return { tickets, nextCursor }
 }
 
 export async function hasAttachmentOfCategory(ticketId: string, category: string): Promise<boolean> {
@@ -505,17 +577,21 @@ export async function getDashboardCounts(tenantId: string, storeId?: string) {
   // Get all tickets for counting
   const allTickets = await baseQuery.get()
 
+  let total = 0
   let actionsToday = 0
   let overdue = 0
   let recebimento = 0
   let interno = 0
   let logistica = 0
   let cobranca = 0
+  let resolucao = 0
+  let encerrado = 0
   let resolved30Days = 0
 
   allTickets.docs.forEach((doc) => {
     const data = doc.data()
     const status = data.status
+    total++
     const nextActionAt = toDate(data.nextActionAt)
     const dueDate = toDate(data.dueDate)
     const closedAt = toDate(data.closedAt)
@@ -525,6 +601,8 @@ export async function getDashboardCounts(tenantId: string, storeId?: string) {
     if (status === "INTERNO") interno++
     if (status === "ENTREGA_LOGISTICA") logistica++
     if (status === "COBRANCA_ACOMPANHAMENTO") cobranca++
+    if (status === "RESOLUCAO") resolucao++
+    if (status === "ENCERRADO") encerrado++
 
     // Actions today
     if (nextActionAt && nextActionAt >= today && nextActionAt < tomorrow) {
@@ -543,12 +621,15 @@ export async function getDashboardCounts(tenantId: string, storeId?: string) {
   })
 
   return {
+    total,
     actionsToday,
     overdue,
     recebimento,
     interno,
     logistica,
     cobranca,
+    resolucao,
+    encerrado,
     resolved30Days,
   }
 }

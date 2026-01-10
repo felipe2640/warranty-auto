@@ -1,8 +1,9 @@
 import { z } from "zod"
+import { RoleEnum, type Role } from "./roles"
+import { isValidCell, isValidCpfCnpj, normalizeDigits } from "./validation"
 
-// Roles
-export const RoleEnum = z.enum(["RECEBEDOR", "INTERNO", "LOGISTICA", "COBRANCA", "ADMIN"])
-export type Role = z.infer<typeof RoleEnum>
+export { RoleEnum }
+export type { Role }
 
 // Status (workflow stages)
 export const StatusEnum = z.enum([
@@ -41,6 +42,9 @@ export const AttachmentCategoryEnum = z.enum([
 ])
 export type AttachmentCategory = z.infer<typeof AttachmentCategoryEnum>
 
+export const ResolutionResultEnum = z.enum(["CREDITO", "TROCA", "NEGOU"])
+export type ResolutionResult = z.infer<typeof ResolutionResultEnum>
+
 // User schema
 export const UserSchema = z.object({
   id: z.string(),
@@ -59,7 +63,10 @@ export type User = z.infer<typeof UserSchema>
 export const StoreSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
-  code: z.string().min(1),
+  code: z.string().min(1).optional(),
+  cnpj: z.string().optional(),
+  address: z.string().optional(),
+  phone: z.string().optional(),
   tenantId: z.string(),
   active: z.boolean().default(true),
   createdAt: z.date(),
@@ -72,6 +79,7 @@ export const SupplierSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   slaDays: z.number().int().min(1),
+  cnpj: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email().optional(),
   tenantId: z.string(),
@@ -182,11 +190,16 @@ export const TicketSchema = z.object({
   nextActionAt: z.date().optional(),
   nextActionNote: z.string().optional(),
   deliveredToSupplierAt: z.date().optional(),
+  supplierResponse: z.string().optional(),
 
   // Resolution
-  resolutionResult: z.string().optional(),
+  resolutionResult: ResolutionResultEnum.optional(),
   resolutionNotes: z.string().optional(),
   closedAt: z.date().optional(),
+
+  // Search
+  searchTokens: z.array(z.string()).optional(),
+  isClosed: z.boolean().default(false),
 
   // Drive
   driveFolderId: z.string().optional(),
@@ -220,8 +233,14 @@ export const CreateTicketFormSchema = z.object({
   retorno: z.string().optional(),
   nomeRazaoSocial: z.string().min(1, "Nome/Razão Social é obrigatório"),
   nomeFantasiaApelido: z.string().optional(),
-  cpfCnpj: z.string().min(1, "CPF/CNPJ é obrigatório"),
-  celular: z.string().min(1, "Celular é obrigatório"),
+  cpfCnpj: z
+    .string()
+    .min(1, "CPF/CNPJ é obrigatório")
+    .refine((value) => isValidCpfCnpj(value), "CPF/CNPJ deve ter 11 ou 14 dígitos"),
+  celular: z
+    .string()
+    .min(1, "Celular é obrigatório")
+    .refine((value) => isValidCell(value), "Celular deve ter ao menos 10 dígitos"),
   isWhatsapp: z.boolean().default(false),
 
   // Peça
@@ -244,6 +263,53 @@ export const CreateTicketFormSchema = z.object({
   signatureDataUrl: z.string().min(1, "Assinatura é obrigatória"),
 })
 export type CreateTicketFormData = z.infer<typeof CreateTicketFormSchema>
+
+export const CreateTicketInputSchema = z.object({
+  tenantId: z.string().min(1),
+  storeId: z.string().min(1),
+  nfIda: z.string().optional(),
+  nfRetorno: z.string().optional(),
+  boletoComAbatimento: z.string().optional(),
+  remessa: z.string().optional(),
+  retorno: z.string().optional(),
+  nomeRazaoSocial: z.string().min(1),
+  nomeFantasiaApelido: z.string().optional(),
+  cpfCnpj: z.string().min(1).refine((value) => isValidCpfCnpj(value), "CPF/CNPJ deve ter 11 ou 14 dígitos"),
+  celular: z.string().min(1).refine((value) => isValidCell(value), "Celular deve ter ao menos 10 dígitos"),
+  isWhatsapp: z.boolean().default(false),
+  descricaoPeca: z.string().min(1),
+  quantidade: z.number().int().min(1),
+  ref: z.string().optional(),
+  codigo: z.string().optional(),
+  defeitoPeca: z.string().min(1),
+  numeroVendaOuCfe: z.string().min(1),
+  numeroVendaOuCfeFornecedor: z.string().optional(),
+  dataVenda: z.date(),
+  dataRecebendoPeca: z.date(),
+  dataIndoFornecedor: z.date().optional(),
+  obs: z.string().optional(),
+  createdBy: z.string().min(1),
+  signatureDataUrl: z.string().min(1),
+})
+
+export const userCreateSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  name: z.string().min(1),
+  role: RoleEnum,
+  storeId: z.string().optional().nullable(),
+})
+
+export const storeSchema = StoreSchema
+export const supplierSchema = SupplierSchema
+
+export function normalizeCpfCnpj(value: string) {
+  return normalizeDigits(value)
+}
+
+export function normalizeCell(value: string) {
+  return normalizeDigits(value)
+}
 
 // Login schema
 export const LoginFormSchema = z.object({

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getSession } from "@/lib/session"
-import { getTicketById, addTimelineEntry } from "@/lib/repositories/tickets"
+import { addTicketTimelineEntry } from "@/lib/services/warrantyService"
 import { getUserPermissions } from "@/lib/permissions"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -14,15 +14,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await request.json()
     const { type, text, setNextAction, nextActionAt, nextActionNote } = body
 
-    const ticket = await getTicketById(id)
-    if (!ticket) {
-      return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
-    }
-
-    if (ticket.tenantId !== session.tenantId) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 })
-    }
-
     const permissions = getUserPermissions(session.role)
 
     if (!permissions.canAddTimeline) {
@@ -34,9 +25,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Permission denied to set next action" }, { status: 403 })
     }
 
-    const entryId = await addTimelineEntry(
-      id,
-      {
+    const entryId = await addTicketTimelineEntry({
+      ticketId: id,
+      tenantId: session.tenantId,
+      entry: {
         type,
         text,
         userId: session.uid,
@@ -44,13 +36,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         nextActionAt: setNextAction && nextActionAt ? new Date(nextActionAt) : undefined,
         nextActionNote: setNextAction ? nextActionNote : undefined,
       },
-      setNextAction && nextActionAt
+      updateNextAction: setNextAction && nextActionAt
         ? {
             nextActionAt: new Date(nextActionAt),
             nextActionNote,
           }
         : undefined,
-    )
+    })
+
+    if (!entryId) {
+      return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
+    }
 
     return NextResponse.json({ success: true, entryId })
   } catch (error) {

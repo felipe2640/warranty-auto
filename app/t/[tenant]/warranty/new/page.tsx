@@ -1,8 +1,8 @@
 import { requireTenantSession } from "@/lib/session"
 import { redirect } from "next/navigation"
 import { getUserPermissions } from "@/lib/permissions"
-import { listStores, getTenantSettings } from "@/lib/repositories/admin"
-import { AppLayout } from "@/components/layout/app-layout"
+import { fetchStores, fetchTenantSettings } from "@/lib/services/adminService"
+import { AppLayout } from "@/components/app-layout"
 import { NewTicketForm } from "./new-ticket-form"
 
 interface NewTicketPageProps {
@@ -19,7 +19,7 @@ export default async function NewTicketPage({ params }: NewTicketPageProps) {
     redirect(`/t/${tenant}/warranty`)
   }
 
-  const [stores, tenantSettings] = await Promise.all([listStores(tenantId), getTenantSettings(tenantId)])
+  const [stores, tenantSettings] = await Promise.all([fetchStores(tenantId), fetchTenantSettings(tenantId)])
 
   const activeStores = stores.filter((s) => s.active)
 
@@ -27,7 +27,14 @@ export default async function NewTicketPage({ params }: NewTicketPageProps) {
   const driveConfigured = !!tenantSettings?.driveRootFolderId
 
   return (
-    <AppLayout tenant={tenant}>
+    <AppLayout
+      tenant={tenant}
+      userName={session.name}
+      userRole={session.role}
+      breadcrumbs={[{ label: "Garantias", href: `/t/${tenant}/warranty` }, { label: "Nova" }]}
+      title="Nova Garantia"
+      showBackButton
+    >
       <div className="p-4 md:p-6 max-w-4xl mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground">Novo Ticket de Garantia</h1>

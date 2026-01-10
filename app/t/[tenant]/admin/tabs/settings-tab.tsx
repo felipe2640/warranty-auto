@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,10 +13,11 @@ import type { TenantSettings } from "@/lib/schemas"
 
 interface SettingsTabProps {
   settings: TenantSettings
-  onRefresh: () => void
+  onRefresh?: () => void
 }
 
 export function SettingsTab({ settings, onRefresh }: SettingsTabProps) {
+  const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
@@ -57,7 +59,7 @@ export function SettingsTab({ settings, onRefresh }: SettingsTabProps) {
       }
 
       setSuccess(true)
-      onRefresh()
+      onRefresh ? onRefresh() : router.refresh()
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar")
@@ -76,7 +78,7 @@ export function SettingsTab({ settings, onRefresh }: SettingsTabProps) {
     setTestResult(null)
 
     try {
-      const response = await fetch("/api/admin/settings/test-drive", {
+      const response = await fetch("/api/admin/test-drive", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ folderId: driveRootFolderId }),

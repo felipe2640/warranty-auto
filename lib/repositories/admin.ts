@@ -91,6 +91,9 @@ export async function listStores(tenantId: string): Promise<Store[]> {
       id: doc.id,
       name: data.name,
       code: data.code,
+      cnpj: data.cnpj,
+      address: data.address,
+      phone: data.phone,
       tenantId: data.tenantId,
       active: data.active,
       createdAt: toDate(data.createdAt)!,
@@ -129,6 +132,7 @@ export async function listSuppliers(tenantId: string): Promise<Supplier[]> {
       id: doc.id,
       name: data.name,
       slaDays: data.slaDays,
+      cnpj: data.cnpj,
       phone: data.phone,
       email: data.email,
       tenantId: data.tenantId,
@@ -139,15 +143,17 @@ export async function listSuppliers(tenantId: string): Promise<Supplier[]> {
   })
 }
 
-export async function getSupplierById(supplierId: string): Promise<Supplier | null> {
+export async function getSupplierById(supplierId: string, tenantId: string): Promise<Supplier | null> {
   const doc = await adminDb.collection("suppliers").doc(supplierId).get()
   if (!doc.exists) return null
 
   const data = doc.data()!
+  if (data.tenantId !== tenantId) return null
   return {
     id: doc.id,
     name: data.name,
     slaDays: data.slaDays,
+    cnpj: data.cnpj,
     phone: data.phone,
     email: data.email,
     tenantId: data.tenantId,

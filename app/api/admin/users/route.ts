@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/session"
-import { adminDb, adminAuth } from "@/lib/firebase/admin"
 import { userCreateSchema } from "@/lib/schemas"
+import { ADMIN_ROLE } from "@/lib/roles"
+import { createAdminUser, listAdminUsers } from "@/lib/services/adminService"
 
 export async function GET() {
   try {
     const session = await getServerSession()
-    if (!session || session.role !== "admin") {
+    if (!session || session.role !== ADMIN_ROLE) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
     }
 
-    const snapshot = await adminDb.collection("users").where("tenantId", "==", session.tenantId).get()
-
-    const users = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }))
-
+    const users = await listAdminUsers(session.tenantId)
     return NextResponse.json(users)
   } catch (error) {
     console.error("Error fetching users:", error)
@@ -27,7 +22,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const session = await getServerSession()
-    if (!session || session.role !== "admin") {
+    if (!session || session.role !== ADMIN_ROLE) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
     }
 
@@ -38,36 +33,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validation.error.errors[0].message }, { status: 400 })
     }
 
-    const { email, password, displayName, role, storeIds } = validation.data
-
-    // Create Firebase Auth user
-    const userRecord = await adminAuth.createUser({
+    const { email, password, name, role, storeId } = validation.data
+    const result = await createAdminUser({
+      tenantId: session.tenantId,
       email,
       password,
-      displayName,
-    })
-
-    // Create Firestore user document
-    const userData = {
-      email,
-      displayName,
+      name,
       role,
-      storeIds: storeIds || [],
-      tenantId: session.tenantId,
-      active: true,
-      createdAt: new Date().toISOString(),
+      storeId,
       createdBy: session.uid,
-    }
-
-    await adminDb.collection("users").doc(userRecord.uid).set(userData)
-
-    // Set custom claims
-    await adminAuth.setCustomUserClaims(userRecord.uid, {
-      tenantId: session.tenantId,
-      role,
     })
 
-    return NextResponse.json({ id: userRecord.uid, ...userData })
+    return NextResponse.json(result)
   } catch (error) {
     console.error("Error creating user:", error)
     const message = error instanceof Error ? error.message : "Erro ao criar usuário"

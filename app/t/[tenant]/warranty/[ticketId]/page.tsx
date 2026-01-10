@@ -1,9 +1,8 @@
 import { requireTenantSession } from "@/lib/session"
 import { notFound } from "next/navigation"
-import { getTicketById, getTicketTimeline, getTicketAttachments, getTicketAudit } from "@/lib/repositories/tickets"
-import { listStores, listSuppliers } from "@/lib/repositories/admin"
 import { getUserPermissions } from "@/lib/permissions"
-import { AppLayout } from "@/components/layout/app-layout"
+import { fetchTicketDetail } from "@/lib/services/warrantyService"
+import { AppLayout } from "@/components/app-layout"
 import { TicketDetailClient } from "./ticket-detail-client"
 
 interface TicketDetailPageProps {
@@ -15,40 +14,39 @@ export default async function TicketDetailPage({ params }: TicketDetailPageProps
 
   const { session, tenantId } = await requireTenantSession(tenant)
 
-  const ticket = await getTicketById(ticketId)
+  const permissions = getUserPermissions(session.role)
+  const detail = await fetchTicketDetail({
+    tenantId,
+    ticketId,
+    canSeeAudit: permissions.canSeeAudit,
+    role: session.role,
+  })
 
-  if (!ticket || ticket.tenantId !== tenantId) {
+  if (!detail) {
     notFound()
   }
 
-  const permissions = getUserPermissions(session.role)
-
-  const [timeline, attachments, stores, suppliers, audit] = await Promise.all([
-    getTicketTimeline(ticketId),
-    getTicketAttachments(ticketId),
-    listStores(tenantId),
-    listSuppliers(tenantId),
-    permissions.canSeeAudit ? getTicketAudit(ticketId) : Promise.resolve([]),
-  ])
-
-  const store = stores.find((s) => s.id === ticket.storeId)
-  const activeSuppliers = suppliers.filter((s) => s.active)
-
   return (
-    <AppLayout tenant={tenant}>
+    <AppLayout
+      tenant={tenant}
+      userName={session.name}
+      userRole={session.role}
+      breadcrumbs={[{ label: "Garantias", href: `/t/${tenant}/warranty` }, { label: "Detalhe" }]}
+      title="Detalhe do Ticket"
+      showBackButton
+    >
       <TicketDetailClient
         tenant={tenant}
-        ticket={{
-          ...ticket,
-          storeName: store?.name || "—",
-        }}
-        timeline={timeline}
-        attachments={attachments}
-        audit={audit}
-        suppliers={activeSuppliers}
+        ticket={detail.ticket}
+        timeline={detail.timeline}
+        attachments={detail.attachments}
+        audit={detail.audit}
+        suppliers={detail.suppliers}
         userRole={session.role}
         userId={session.uid}
         userName={session.name}
+        nextTransitionChecklist={detail.nextTransitionChecklist}
+        stageSummaryMap={detail.stageSummaryMap}
       />
     </AppLayout>
   )

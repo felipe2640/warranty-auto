@@ -31,7 +31,7 @@ export function AppSidebar({ tenant, userRole, userName, userEmail }: AppSidebar
   const navigation = [
     {
       name: "Dashboard",
-      href: `/t/${tenant}`,
+      href: `/t/${tenant}/dashboard`,
       icon: LayoutDashboard,
       exact: true,
     },
