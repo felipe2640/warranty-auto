@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const validation = supplierSchema.omit({ id: true }).safeParse({
+    const validation = supplierSchema.omit({ id: true, createdAt: true, updatedAt: true }).safeParse({
       ...body,
       tenantId: session.tenantId,
     })

@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const validation = storeSchema.omit({ id: true }).safeParse({
+    const validation = storeSchema.omit({ id: true, createdAt: true, updatedAt: true }).safeParse({
       ...body,
       code: body.code || body.name,
       tenantId: session.tenantId,
