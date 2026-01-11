@@ -15,6 +15,14 @@ import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin"
 import type { TenantSettings, Store, Supplier, User } from "@/lib/schemas"
 import { driveClient } from "@/lib/drive/client"
 
+function isMissingIndexError(error: unknown) {
+  if (!error || typeof error !== "object") return false
+  const maybeError = error as { code?: unknown; message?: unknown }
+  if (maybeError.code === 9) return true
+  if (typeof maybeError.message === "string" && maybeError.message.includes("requires an index")) return true
+  return false
+}
+
 export async function fetchTenantBySlug(slug: string): Promise<TenantSettings | null> {
   return getTenantBySlug(slug)
 }
@@ -40,14 +48,28 @@ export async function fetchSupplierById(tenantId: string, supplierId: string): P
 }
 
 export async function fetchOpenTicketsCount(tenantId: string) {
-  const snapshot = await getAdminDb()
-    .collection("tickets")
-    .where("tenantId", "==", tenantId)
-    .where("status", "!=", "ENCERRADO")
-    .count()
-    .get()
+  try {
+    const snapshot = await getAdminDb()
+      .collection("tickets")
+      .where("tenantId", "==", tenantId)
+      .where("status", "!=", "ENCERRADO")
+      .count()
+      .get()
 
-  return snapshot.data().count
+    return snapshot.data().count
+  } catch (error) {
+    if (!isMissingIndexError(error)) {
+      throw error
+    }
+
+    const snapshot = await getAdminDb().collection("tickets").where("tenantId", "==", tenantId).get()
+    let count = 0
+    snapshot.docs.forEach((doc) => {
+      const status = doc.data().status
+      if (status !== "ENCERRADO") count++
+    })
+    return count
+  }
 }
 
 export async function listAdminUsers(tenantId: string): Promise<User[]> {
@@ -214,45 +236,91 @@ export async function fetchAdminAuditEntries(options: {
   action?: string | null
   userId?: string | null
 }) {
-  let query = getAdminDb()
-    .collectionGroup("audit")
-    .where("tenantId", "==", options.tenantId)
-    .orderBy("createdAt", "desc")
-    .limit(100)
+  try {
+    let query = getAdminDb()
+      .collectionGroup("audit")
+      .where("tenantId", "==", options.tenantId)
+      .orderBy("createdAt", "desc")
+      .limit(100)
 
-  if (options.ticketId) {
-    query = query.where("ticketId", "==", options.ticketId)
-  }
-
-  if (options.action && options.action !== "all") {
-    query = query.where("action", "==", options.action)
-  }
-
-  if (options.userId) {
-    query = query.where("userId", "==", options.userId)
-  }
-
-  const snapshot = await query.get()
-
-  let entries = snapshot.docs.map((doc) => {
-    const data = doc.data()
-    return {
-      id: doc.id,
-      ...data,
-      createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
+    if (options.ticketId) {
+      query = query.where("ticketId", "==", options.ticketId)
     }
-  })
 
-  if (options.startDate) {
-    const start = new Date(options.startDate)
-    entries = entries.filter((e) => new Date(e.createdAt) >= start)
+    if (options.action && options.action !== "all") {
+      query = query.where("action", "==", options.action)
+    }
+
+    if (options.userId) {
+      query = query.where("userId", "==", options.userId)
+    }
+
+    const snapshot = await query.get()
+
+    let entries = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
+      }
+    })
+
+    if (options.startDate) {
+      const start = new Date(options.startDate)
+      entries = entries.filter((e) => new Date(e.createdAt) >= start)
+    }
+
+    if (options.endDate) {
+      const end = new Date(options.endDate)
+      end.setHours(23, 59, 59, 999)
+      entries = entries.filter((e) => new Date(e.createdAt) <= end)
+    }
+
+    return entries
+  } catch (error) {
+    if (!isMissingIndexError(error)) {
+      throw error
+    }
+
+    let query = getAdminDb().collectionGroup("audit").where("tenantId", "==", options.tenantId)
+
+    if (options.ticketId) {
+      query = query.where("ticketId", "==", options.ticketId)
+    }
+
+    if (options.action && options.action !== "all") {
+      query = query.where("action", "==", options.action)
+    }
+
+    if (options.userId) {
+      query = query.where("userId", "==", options.userId)
+    }
+
+    const snapshot = await query.limit(200).get()
+
+    let entries = snapshot.docs.map((doc) => {
+      const data = doc.data()
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
+      }
+    })
+
+    if (options.startDate) {
+      const start = new Date(options.startDate)
+      entries = entries.filter((e) => new Date(e.createdAt) >= start)
+    }
+
+    if (options.endDate) {
+      const end = new Date(options.endDate)
+      end.setHours(23, 59, 59, 999)
+      entries = entries.filter((e) => new Date(e.createdAt) <= end)
+    }
+
+    entries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+    return entries.slice(0, 100)
   }
-
-  if (options.endDate) {
-    const end = new Date(options.endDate)
-    end.setHours(23, 59, 59, 999)
-    entries = entries.filter((e) => new Date(e.createdAt) <= end)
-  }
-
-  return entries
 }

@@ -42,18 +42,19 @@ export function LoginForm({ tenant, tenantName }: LoginFormProps) {
       const response = await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ idToken, tenant }),
       })
 
+      const responseData = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error("Failed to create session")
+        throw new Error(responseData.error || "Failed to create session")
       }
 
       router.push(`/t/${tenant}/dashboard`)
       router.refresh()
     } catch (err) {
       console.error("Login error:", err)
-      setError("Email ou senha inválidos")
+      setError(err instanceof Error ? err.message : "Email ou senha inválidos")
     } finally {
       setIsLoading(false)
     }

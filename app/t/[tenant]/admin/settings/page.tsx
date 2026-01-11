@@ -35,7 +35,16 @@ export default async function AdminSettingsPage({ params }: { params: Promise<{ 
   }
 
   return (
-    <AppLayout tenant={tenant} userName={session.name} userRole={session.role} breadcrumbs={[{ label: "Admin" }, { label: "Configurações" }]} title="Configurações">
+    <AppLayout
+      tenant={tenant}
+      userName={session.name}
+      userRole={session.role}
+      breadcrumbs={[
+        { label: "Admin", href: `/t/${tenant}/admin` },
+        { label: "Configurações", href: `/t/${tenant}/admin/settings` },
+      ]}
+      title="Configurações"
+    >
       <div className="p-4 lg:p-6">
         <div className="mx-auto max-w-4xl">
           <SettingsTab settings={settings} />

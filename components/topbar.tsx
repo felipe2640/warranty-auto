@@ -2,6 +2,7 @@
 
 import type React from "react"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -80,14 +81,16 @@ export function Topbar({
 
       {/* Breadcrumbs (Desktop) */}
       <div className="hidden md:flex items-center gap-1 text-sm">
-        <span className="text-muted-foreground capitalize">{tenant}</span>
+        <Link href={`/t/${tenant}/dashboard`} className="text-muted-foreground capitalize hover:underline">
+          {tenant}
+        </Link>
         {breadcrumbs.map((crumb, index) => (
           <div key={index} className="flex items-center gap-1">
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
             {crumb.href ? (
-              <a href={crumb.href} className="hover:underline">
+              <Link href={crumb.href} className="hover:underline">
                 {crumb.label}
-              </a>
+              </Link>
             ) : (
               <span className="font-medium">{crumb.label}</span>
             )}

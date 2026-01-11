@@ -2,6 +2,18 @@ import { getAdminAuth, getAdminDb } from "../firebase/admin"
 import type { User, Store, Supplier, TenantSettings } from "../schemas"
 import type { FirebaseFirestore } from "firebase-admin/firestore"
 
+function isMissingIndexError(error: unknown) {
+  if (!error || typeof error !== "object") return false
+  const maybeError = error as { code?: unknown; message?: unknown }
+  if (maybeError.code === 9) return true
+  if (typeof maybeError.message === "string" && maybeError.message.includes("requires an index")) return true
+  return false
+}
+
+function byNameAsc<T extends { name?: string }>(a: T, b: T) {
+  return (a.name || "").localeCompare(b.name || "")
+}
+
 function toDate(timestamp: { toDate: () => Date } | Date | undefined): Date | undefined {
   if (!timestamp) return undefined
   if (timestamp instanceof Date) return timestamp
@@ -11,9 +23,18 @@ function toDate(timestamp: { toDate: () => Date } | Date | undefined): Date | un
 
 // Users
 export async function listUsers(tenantId: string): Promise<User[]> {
-  const snapshot = await getAdminDb().collection("users").where("tenantId", "==", tenantId).orderBy("name").get()
+  let snapshot: FirebaseFirestore.QuerySnapshot
 
-  return snapshot.docs.map((doc) => {
+  try {
+    snapshot = await getAdminDb().collection("users").where("tenantId", "==", tenantId).orderBy("name").get()
+  } catch (error) {
+    if (!isMissingIndexError(error)) {
+      throw error
+    }
+    snapshot = await getAdminDb().collection("users").where("tenantId", "==", tenantId).get()
+  }
+
+  const users = snapshot.docs.map((doc) => {
     const data = doc.data()
     return {
       id: doc.id,
@@ -27,6 +48,8 @@ export async function listUsers(tenantId: string): Promise<User[]> {
       updatedAt: toDate(data.updatedAt)!,
     }
   })
+
+  return users.sort(byNameAsc)
 }
 
 export async function createUser(
@@ -83,9 +106,18 @@ export async function generatePasswordResetLink(email: string): Promise<string> 
 
 // Stores
 export async function listStores(tenantId: string): Promise<Store[]> {
-  const snapshot = await getAdminDb().collection("stores").where("tenantId", "==", tenantId).orderBy("name").get()
+  let snapshot: FirebaseFirestore.QuerySnapshot
 
-  return snapshot.docs.map((doc) => {
+  try {
+    snapshot = await getAdminDb().collection("stores").where("tenantId", "==", tenantId).orderBy("name").get()
+  } catch (error) {
+    if (!isMissingIndexError(error)) {
+      throw error
+    }
+    snapshot = await getAdminDb().collection("stores").where("tenantId", "==", tenantId).get()
+  }
+
+  const stores = snapshot.docs.map((doc) => {
     const data = doc.data()
     return {
       id: doc.id,
@@ -100,6 +132,8 @@ export async function listStores(tenantId: string): Promise<Store[]> {
       updatedAt: toDate(data.updatedAt)!,
     }
   })
+
+  return stores.sort(byNameAsc)
 }
 
 export async function createStore(data: Omit<Store, "id" | "createdAt" | "updatedAt">): Promise<string> {
@@ -124,9 +158,18 @@ export async function updateStore(storeId: string, data: Partial<Store>): Promis
 
 // Suppliers
 export async function listSuppliers(tenantId: string): Promise<Supplier[]> {
-  const snapshot = await getAdminDb().collection("suppliers").where("tenantId", "==", tenantId).orderBy("name").get()
+  let snapshot: FirebaseFirestore.QuerySnapshot
 
-  return snapshot.docs.map((doc) => {
+  try {
+    snapshot = await getAdminDb().collection("suppliers").where("tenantId", "==", tenantId).orderBy("name").get()
+  } catch (error) {
+    if (!isMissingIndexError(error)) {
+      throw error
+    }
+    snapshot = await getAdminDb().collection("suppliers").where("tenantId", "==", tenantId).get()
+  }
+
+  const suppliers = snapshot.docs.map((doc) => {
     const data = doc.data()
     return {
       id: doc.id,
@@ -141,6 +184,8 @@ export async function listSuppliers(tenantId: string): Promise<Supplier[]> {
       updatedAt: toDate(data.updatedAt)!,
     }
   })
+
+  return suppliers.sort(byNameAsc)
 }
 
 export async function getSupplierById(supplierId: string, tenantId: string): Promise<Supplier | null> {

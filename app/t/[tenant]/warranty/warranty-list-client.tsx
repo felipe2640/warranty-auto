@@ -111,7 +111,7 @@ export function WarrantyListClient({
       userName={userName}
       userRole={userRole}
       userStoreId={userStoreId}
-      breadcrumbs={[{ label: "Garantias" }]}
+      breadcrumbs={[{ label: "Garantias", href: `/t/${tenant}/warranty` }]}
       title="Garantias"
       stores={userRole !== "RECEBEDOR" ? stores : undefined}
       currentStoreId={storeFilter}

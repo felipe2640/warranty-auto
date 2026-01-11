@@ -31,7 +31,10 @@ export default async function NewTicketPage({ params }: NewTicketPageProps) {
       tenant={tenant}
       userName={session.name}
       userRole={session.role}
-      breadcrumbs={[{ label: "Garantias", href: `/t/${tenant}/warranty` }, { label: "Nova" }]}
+      breadcrumbs={[
+        { label: "Garantias", href: `/t/${tenant}/warranty` },
+        { label: "Nova", href: `/t/${tenant}/warranty/new` },
+      ]}
       title="Nova Garantia"
       showBackButton
     >

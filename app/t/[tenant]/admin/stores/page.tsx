@@ -18,7 +18,16 @@ export default async function AdminStoresPage({ params }: { params: Promise<{ te
   const stores = await fetchStores(session.tenantId)
 
   return (
-    <AppLayout tenant={tenant} userName={session.name} userRole={session.role} breadcrumbs={[{ label: "Admin" }, { label: "Lojas" }]} title="Lojas">
+    <AppLayout
+      tenant={tenant}
+      userName={session.name}
+      userRole={session.role}
+      breadcrumbs={[
+        { label: "Admin", href: `/t/${tenant}/admin` },
+        { label: "Lojas", href: `/t/${tenant}/admin/stores` },
+      ]}
+      title="Lojas"
+    >
       <div className="p-4 lg:p-6">
         <div className="mx-auto max-w-5xl">
           <StoresTab stores={stores} />

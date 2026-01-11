@@ -22,7 +22,13 @@ Preencha as variáveis em `.env.local` com base em `.env.example`:
 - `NEXT_PUBLIC_FIREBASE_*`
 
 ### Usuário ADMIN inicial
-Crie um usuário com `role = "ADMIN"` em `users` e `tenantId` válido.
+Opção A (automático no primeiro login):
+1. Crie um usuário no Firebase Auth (email/senha).
+2. Acesse `/t/<slug>/login` e faça login.
+3. Se não existir tenant e não houver usuários para ele, o sistema cria o tenant e o primeiro usuário `ADMIN` automaticamente.
+
+Opção B (manual):
+- Crie um usuário com `role = "ADMIN"` em `users` e `tenantId` válido.
 
 ## 3) Firestore
 ### Estrutura de coleções

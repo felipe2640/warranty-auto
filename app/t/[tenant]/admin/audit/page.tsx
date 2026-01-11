@@ -15,7 +15,16 @@ export default async function AdminAuditPage({ params }: { params: Promise<{ ten
   }
 
   return (
-    <AppLayout tenant={tenant} userName={session.name} userRole={session.role} breadcrumbs={[{ label: "Admin" }, { label: "Auditoria" }]} title="Auditoria">
+    <AppLayout
+      tenant={tenant}
+      userName={session.name}
+      userRole={session.role}
+      breadcrumbs={[
+        { label: "Admin", href: `/t/${tenant}/admin` },
+        { label: "Auditoria", href: `/t/${tenant}/admin/audit` },
+      ]}
+      title="Auditoria"
+    >
       <div className="p-4 lg:p-6">
         <div className="mx-auto max-w-6xl">
           <AuditTab tenant={tenant} />

@@ -39,10 +39,10 @@ pnpm install
 pnpm dev
 ```
 
-4) Criar tenant e admin inicial:
-- Crie um documento em `tenants` com `slug`, `name` e `driveRootFolderId`.
-- Crie um usuário `ADMIN` em `users` com `tenantId` correspondente.
-- Configure `serviceAccountEmail` no tenant (opcional, exibido na UI de Admin).
+4) Bootstrap inicial (sem seed manual):
+- Crie um usuário no Firebase Auth (email/senha).
+- Acesse `/t/<slug>/login` e faça login.
+- Se o tenant não existir e não houver usuários para ele, o sistema cria o tenant e o primeiro usuário `ADMIN` automaticamente.
 
 > Detalhes completos em `docs/SETUP.md`.
 

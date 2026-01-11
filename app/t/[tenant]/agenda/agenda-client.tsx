@@ -311,7 +311,7 @@ export function AgendaClient({
       tenant={tenant}
       userName={userName}
       userRole={userRole}
-      breadcrumbs={[{ label: "Agenda" }]}
+      breadcrumbs={[{ label: "Agenda", href: `/t/${tenant}/agenda` }]}
       title="Agenda"
     >
       <div className="p-4 lg:p-6">

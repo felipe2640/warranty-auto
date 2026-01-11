@@ -55,7 +55,7 @@ export function DashboardClient({ stats, stores, tenant, userName, userRole, use
       tenant={tenant}
       userName={userName}
       userRole={userRole}
-      breadcrumbs={[{ label: "Dashboard" }]}
+      breadcrumbs={[{ label: "Dashboard", href: `/t/${tenant}/dashboard` }]}
       stores={stores.length > 1 ? stores : undefined}
       currentStoreId={selectedStoreId}
       onStoreChange={stores.length > 1 ? handleStoreChange : undefined}

@@ -5,7 +5,18 @@ function getServiceAccountCredentials() {
   if (!credentialsJson) {
     throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set")
   }
-  return JSON.parse(credentialsJson)
+
+  const trimmed = credentialsJson.trim()
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    try {
+      const decoded = Buffer.from(trimmed, "base64").toString("utf-8")
+      return JSON.parse(decoded)
+    } catch {
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON must be JSON or base64-encoded JSON")
+    }
+  }
 }
 
 function getDriveClient() {

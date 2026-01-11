@@ -47,7 +47,7 @@ export default async function AdminPage({ params }: { params: Promise<{ tenant: 
       tenant={tenant}
       userName={session.name}
       userRole={session.role}
-      breadcrumbs={[{ label: "Admin" }]}
+      breadcrumbs={[{ label: "Admin", href: `/t/${tenant}/admin` }]}
       title="Administração"
     >
       <div className="p-4 lg:p-6">

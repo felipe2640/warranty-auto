@@ -18,7 +18,16 @@ export default async function AdminSuppliersPage({ params }: { params: Promise<{
   const suppliers = await fetchSuppliers(session.tenantId)
 
   return (
-    <AppLayout tenant={tenant} userName={session.name} userRole={session.role} breadcrumbs={[{ label: "Admin" }, { label: "Fornecedores" }]} title="Fornecedores">
+    <AppLayout
+      tenant={tenant}
+      userName={session.name}
+      userRole={session.role}
+      breadcrumbs={[
+        { label: "Admin", href: `/t/${tenant}/admin` },
+        { label: "Fornecedores", href: `/t/${tenant}/admin/suppliers` },
+      ]}
+      title="Fornecedores"
+    >
       <div className="p-4 lg:p-6">
         <div className="mx-auto max-w-5xl">
           <SuppliersTab suppliers={suppliers} />

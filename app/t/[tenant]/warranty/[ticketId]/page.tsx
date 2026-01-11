@@ -31,7 +31,10 @@ export default async function TicketDetailPage({ params }: TicketDetailPageProps
       tenant={tenant}
       userName={session.name}
       userRole={session.role}
-      breadcrumbs={[{ label: "Garantias", href: `/t/${tenant}/warranty` }, { label: "Detalhe" }]}
+      breadcrumbs={[
+        { label: "Garantias", href: `/t/${tenant}/warranty` },
+        { label: "Detalhe", href: `/t/${tenant}/warranty/${ticketId}` },
+      ]}
       title="Detalhe do Ticket"
       showBackButton
     >

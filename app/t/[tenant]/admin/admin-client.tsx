@@ -60,7 +60,7 @@ export function AdminClient({
       tenant={tenant}
       userName={userName}
       userRole={userRole}
-      breadcrumbs={[{ label: "Admin" }]}
+      breadcrumbs={[{ label: "Admin", href: `/t/${tenant}/admin` }]}
       title="Administração"
     >
       <div className="p-4 lg:p-6">

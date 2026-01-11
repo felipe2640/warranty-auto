@@ -10,6 +10,14 @@ const TIMELINE_COLLECTION = "timeline"
 const ATTACHMENTS_COLLECTION = "attachments"
 const AUDIT_COLLECTION = "audit"
 
+function isMissingIndexError(error: unknown) {
+  if (!error || typeof error !== "object") return false
+  const maybeError = error as { code?: unknown; message?: unknown }
+  if (maybeError.code === 9) return true
+  if (typeof maybeError.message === "string" && maybeError.message.includes("requires an index")) return true
+  return false
+}
+
 function toDate(timestamp: { toDate: () => Date } | Date | string | undefined): Date | undefined {
   if (!timestamp) return undefined
   if (timestamp instanceof Date) return timestamp
@@ -263,54 +271,125 @@ export interface ListTicketsOptions {
 }
 
 export async function listTickets(options: ListTicketsOptions): Promise<{ tickets: Ticket[]; nextCursor?: string }> {
-  let query: FirebaseFirestore.Query = getAdminDb().collection(TICKETS_COLLECTION).where("tenantId", "==", options.tenantId)
+  try {
+    let query: FirebaseFirestore.Query = getAdminDb()
+      .collection(TICKETS_COLLECTION)
+      .where("tenantId", "==", options.tenantId)
+
+    if (options.status) {
+      query = query.where("status", "==", options.status)
+    }
+
+    if (options.storeId) {
+      query = query.where("storeId", "==", options.storeId)
+    }
+
+    if (options.supplierId) {
+      query = query.where("supplierId", "==", options.supplierId)
+    }
+
+    if (options.onlyOverdue) {
+      query = query.where("isClosed", "==", false).where("dueDate", "<", new Date()).orderBy("dueDate", "asc")
+    } else if (options.onlyActionToday) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      query = query.where("nextActionAt", ">=", today).where("nextActionAt", "<", tomorrow).orderBy("nextActionAt", "asc")
+    } else {
+      query = query.orderBy("createdAt", "desc")
+    }
+
+    if (options.search) {
+      const token = normalizeSearchToken(options.search)
+      if (token) {
+        query = query.where("searchTokens", "array-contains", token)
+      }
+    }
+
+    const limit = options.limit || 20
+    query = query.limit(limit + 1) // Fetch one extra to check if there are more
+
+    if (options.startAfter) {
+      const startAfterDoc = await getAdminDb().collection(TICKETS_COLLECTION).doc(options.startAfter).get()
+      if (startAfterDoc.exists) {
+        query = query.startAfter(startAfterDoc)
+      }
+    }
+
+    const snapshot = await query.get()
+    const tickets = snapshot.docs.slice(0, limit).map((doc) => serializeTicket(doc)!)
+    const nextCursor = snapshot.docs.length > limit ? snapshot.docs[limit - 1].id : undefined
+
+    return { tickets, nextCursor }
+  } catch (error) {
+    if (!isMissingIndexError(error)) {
+      throw error
+    }
+    return listTicketsWithoutIndex(options)
+  }
+}
+
+async function listTicketsWithoutIndex(options: ListTicketsOptions): Promise<{ tickets: Ticket[]; nextCursor?: string }> {
+  const snapshot = await getAdminDb().collection(TICKETS_COLLECTION).where("tenantId", "==", options.tenantId).get()
+
+  let tickets = snapshot.docs
+    .map((doc) => serializeTicket(doc))
+    .filter((ticket): ticket is Ticket => ticket !== null)
 
   if (options.status) {
-    query = query.where("status", "==", options.status)
+    tickets = tickets.filter((ticket) => ticket.status === options.status)
   }
 
   if (options.storeId) {
-    query = query.where("storeId", "==", options.storeId)
+    tickets = tickets.filter((ticket) => ticket.storeId === options.storeId)
   }
 
   if (options.supplierId) {
-    query = query.where("supplierId", "==", options.supplierId)
-  }
-
-  if (options.onlyOverdue) {
-    query = query.where("isClosed", "==", false).where("dueDate", "<", new Date()).orderBy("dueDate", "asc")
-  } else if (options.onlyActionToday) {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    query = query.where("nextActionAt", ">=", today).where("nextActionAt", "<", tomorrow).orderBy("nextActionAt", "asc")
-  } else {
-    query = query.orderBy("createdAt", "desc")
+    tickets = tickets.filter((ticket) => ticket.supplierId === options.supplierId)
   }
 
   if (options.search) {
     const token = normalizeSearchToken(options.search)
     if (token) {
-      query = query.where("searchTokens", "array-contains", token)
+      tickets = tickets.filter((ticket) => ticket.searchTokens?.includes(token))
     }
+  }
+
+  const now = new Date()
+  if (options.onlyOverdue) {
+    tickets = tickets.filter((ticket) => !ticket.isClosed && ticket.dueDate && ticket.dueDate < now)
+  } else if (options.onlyActionToday) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tickets = tickets.filter((ticket) => ticket.nextActionAt && ticket.nextActionAt >= today && ticket.nextActionAt < tomorrow)
+  }
+
+  if (options.onlyOverdue) {
+    tickets.sort((a, b) => (a.dueDate?.getTime() || 0) - (b.dueDate?.getTime() || 0))
+  } else if (options.onlyActionToday) {
+    tickets.sort((a, b) => (a.nextActionAt?.getTime() || 0) - (b.nextActionAt?.getTime() || 0))
+  } else {
+    tickets.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
   }
 
   const limit = options.limit || 20
-  query = query.limit(limit + 1) // Fetch one extra to check if there are more
+  let startIndex = 0
 
   if (options.startAfter) {
-    const startAfterDoc = await getAdminDb().collection(TICKETS_COLLECTION).doc(options.startAfter).get()
-    if (startAfterDoc.exists) {
-      query = query.startAfter(startAfterDoc)
+    const index = tickets.findIndex((ticket) => ticket.id === options.startAfter)
+    if (index >= 0) {
+      startIndex = index + 1
     }
   }
 
-  const snapshot = await query.get()
-  const tickets = snapshot.docs.slice(0, limit).map((doc) => serializeTicket(doc)!)
-  const nextCursor = snapshot.docs.length > limit ? snapshot.docs[limit - 1].id : undefined
+  const paged = tickets.slice(startIndex, startIndex + limit + 1)
+  const results = paged.slice(0, limit)
+  const nextCursor = paged.length > limit ? results[results.length - 1]?.id : undefined
 
-  return { tickets, nextCursor }
+  return { tickets: results, nextCursor }
 }
 
 export async function getTicketTimeline(ticketId: string): Promise<TimelineEntry[]> {
@@ -519,32 +598,81 @@ export async function listTicketsByNextActionRange(options: {
   limit?: number
   startAfter?: string
 }): Promise<{ tickets: Ticket[]; nextCursor?: string }> {
-  let query: FirebaseFirestore.Query = getAdminDb()
-    .collection(TICKETS_COLLECTION)
-    .where("tenantId", "==", options.tenantId)
-    .where("nextActionAt", ">=", options.start)
-    .where("nextActionAt", "<=", options.end)
-    .orderBy("nextActionAt", "asc")
+  try {
+    let query: FirebaseFirestore.Query = getAdminDb()
+      .collection(TICKETS_COLLECTION)
+      .where("tenantId", "==", options.tenantId)
+      .where("nextActionAt", ">=", options.start)
+      .where("nextActionAt", "<=", options.end)
+      .orderBy("nextActionAt", "asc")
+
+    if (options.statuses?.length) {
+      query = query.where("status", "in", options.statuses)
+    }
+
+    const limit = options.limit || 20
+    query = query.limit(limit + 1)
+
+    if (options.startAfter) {
+      const startAfterDoc = await getAdminDb().collection(TICKETS_COLLECTION).doc(options.startAfter).get()
+      if (startAfterDoc.exists) {
+        query = query.startAfter(startAfterDoc)
+      }
+    }
+
+    const snapshot = await query.get()
+    const tickets = snapshot.docs.slice(0, limit).map((doc) => serializeTicket(doc)!)
+    const nextCursor = snapshot.docs.length > limit ? snapshot.docs[limit - 1].id : undefined
+
+    return { tickets, nextCursor }
+  } catch (error) {
+    if (!isMissingIndexError(error)) {
+      throw error
+    }
+    return listTicketsByNextActionRangeWithoutIndex(options)
+  }
+}
+
+async function listTicketsByNextActionRangeWithoutIndex(options: {
+  tenantId: string
+  statuses?: Status[]
+  start: Date
+  end: Date
+  limit?: number
+  startAfter?: string
+}): Promise<{ tickets: Ticket[]; nextCursor?: string }> {
+  const snapshot = await getAdminDb().collection(TICKETS_COLLECTION).where("tenantId", "==", options.tenantId).get()
+
+  let tickets = snapshot.docs
+    .map((doc) => serializeTicket(doc))
+    .filter((ticket): ticket is Ticket => ticket !== null)
 
   if (options.statuses?.length) {
-    query = query.where("status", "in", options.statuses)
+    const allowed = new Set(options.statuses)
+    tickets = tickets.filter((ticket) => allowed.has(ticket.status))
   }
 
+  tickets = tickets.filter(
+    (ticket) => ticket.nextActionAt && ticket.nextActionAt >= options.start && ticket.nextActionAt <= options.end,
+  )
+
+  tickets.sort((a, b) => (a.nextActionAt?.getTime() || 0) - (b.nextActionAt?.getTime() || 0))
+
   const limit = options.limit || 20
-  query = query.limit(limit + 1)
+  let startIndex = 0
 
   if (options.startAfter) {
-    const startAfterDoc = await getAdminDb().collection(TICKETS_COLLECTION).doc(options.startAfter).get()
-    if (startAfterDoc.exists) {
-      query = query.startAfter(startAfterDoc)
+    const index = tickets.findIndex((ticket) => ticket.id === options.startAfter)
+    if (index >= 0) {
+      startIndex = index + 1
     }
   }
 
-  const snapshot = await query.get()
-  const tickets = snapshot.docs.slice(0, limit).map((doc) => serializeTicket(doc)!)
-  const nextCursor = snapshot.docs.length > limit ? snapshot.docs[limit - 1].id : undefined
+  const paged = tickets.slice(startIndex, startIndex + limit + 1)
+  const results = paged.slice(0, limit)
+  const nextCursor = paged.length > limit ? results[results.length - 1]?.id : undefined
 
-  return { tickets, nextCursor }
+  return { tickets: results, nextCursor }
 }
 
 export async function hasAttachmentOfCategory(ticketId: string, category: string): Promise<boolean> {

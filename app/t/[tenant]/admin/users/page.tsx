@@ -21,7 +21,16 @@ export default async function AdminUsersPage({ params }: { params: Promise<{ ten
   ])
 
   return (
-    <AppLayout tenant={tenant} userName={session.name} userRole={session.role} breadcrumbs={[{ label: "Admin" }, { label: "Usuários" }]} title="Usuários">
+    <AppLayout
+      tenant={tenant}
+      userName={session.name}
+      userRole={session.role}
+      breadcrumbs={[
+        { label: "Admin", href: `/t/${tenant}/admin` },
+        { label: "Usuários", href: `/t/${tenant}/admin/users` },
+      ]}
+      title="Usuários"
+    >
       <div className="p-4 lg:p-6">
         <div className="mx-auto max-w-5xl">
           <UsersTab users={users} stores={stores} />
