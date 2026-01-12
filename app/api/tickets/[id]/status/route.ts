@@ -13,17 +13,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { id } = await params
     const body = await request.json()
-    const { action, targetStatus, reason, supplierId, resolutionResult, resolutionNotes, supplierResponse } = body
+    const { action, targetStatus, reason, supplierId, resolutionResult, resolutionNotes, supplierResponse, nextStatus, note } =
+      body
 
     const permissions = getUserPermissions(session.role)
 
-    if (action === "advance") {
+    const resolvedAction = action ?? (nextStatus || note ? "advance" : undefined)
+
+    if (resolvedAction === "advance") {
       const result = await advanceTicketStatus({
         ticketId: id,
         tenantId: session.tenantId,
         role: session.role,
         userId: session.uid,
         userName: session.name,
+        nextStatus,
+        note,
         supplierId,
         resolutionResult,
         resolutionNotes,
@@ -37,7 +42,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: true, newStatus: result.nextStatus })
     }
 
-    if (action === "revert") {
+    if (resolvedAction === "revert") {
       if (!permissions.canRevertStage) {
         return NextResponse.json({ error: "Permission denied" }, { status: 403 })
       }

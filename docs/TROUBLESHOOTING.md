@@ -16,6 +16,12 @@
 ## Índices Firestore faltando
 - Execute a query e use o link de criação automática do console.
 
+## Datas aparecendo -1 dia (timezone)
+- Este projeto usa datas "date-only" (YYYY-MM-DD) para `nextActionAt`, `dueDate`, `dataVenda`, `dataRecebendoPeca`, `dataIndoFornecedor`.
+- Se houver dados antigos salvos como Timestamp/Date, rode a migração:
+  - `node scripts/migrate-date-only.js`
+- Depois disso, os filtros de Agenda e SLA passam a comparar strings (sem shift de timezone).
+
 ## build: module-not-found no Linux
 - Verifique nomes de arquivos vs imports (case-sensitive).
 - Evite client importar módulo server-only (use `lib/types/*`).

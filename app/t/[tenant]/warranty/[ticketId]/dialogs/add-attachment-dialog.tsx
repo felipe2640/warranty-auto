@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AttachmentCategoryEnum } from "@/lib/schemas"
+import { compressImageFile } from "@/lib/client/imageCompression"
 import { Loader2, AlertCircle, Upload, X } from "lucide-react"
 
 interface AddAttachmentDialogProps {
@@ -31,7 +32,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 export function AddAttachmentDialog({ open, onOpenChange, ticketId, canAttachCanhoto, onSuccess }: AddAttachmentDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isOptimizing, setIsOptimizing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [category, setCategory] = useState<string>("")
 
@@ -45,6 +48,8 @@ export function AddAttachmentDialog({ open, onOpenChange, ticketId, canAttachCan
     const selectedFile = e.target.files?.[0]
     if (selectedFile) {
       setFile(selectedFile)
+      setError(null)
+      setSuccessMessage(null)
     }
   }
 
@@ -55,11 +60,22 @@ export function AddAttachmentDialog({ open, onOpenChange, ticketId, canAttachCan
     }
 
     setError(null)
+    setSuccessMessage(null)
     setIsSubmitting(true)
 
     try {
+      let uploadFile = file
+      if (file.type.startsWith("image/")) {
+        setIsOptimizing(true)
+        try {
+          uploadFile = await compressImageFile(file)
+        } finally {
+          setIsOptimizing(false)
+        }
+      }
+
       const formData = new FormData()
-      formData.append("file", file)
+      formData.append("file", uploadFile)
       formData.append("category", category)
 
       const response = await fetch(`/api/tickets/${ticketId}/attachments`, {
@@ -70,12 +86,23 @@ export function AddAttachmentDialog({ open, onOpenChange, ticketId, canAttachCan
       const result = await response.json()
 
       if (!response.ok) {
-        setError(result.error || "Erro ao anexar arquivo")
+        const message = result?.error?.message || result?.error || "Erro ao anexar arquivo"
+        const code = result?.error?.code ? ` (${result.error.code})` : ""
+        setError(`${message}${code}`)
         return
       }
 
+      const successText = result.autoAdvanced
+        ? "Canhoto anexado e etapa avançada."
+        : result.reason
+          ? `Canhoto anexado, mas ainda falta: ${result.reason}`
+          : "Anexo salvo com sucesso."
+
+      setSuccessMessage(successText)
+      setFile(null)
+      setCategory("")
+      if (inputRef.current) inputRef.current.value = ""
       onSuccess()
-      handleClose()
     } catch {
       setError("Erro ao anexar arquivo")
     } finally {
@@ -87,6 +114,8 @@ export function AddAttachmentDialog({ open, onOpenChange, ticketId, canAttachCan
     setFile(null)
     setCategory("")
     setError(null)
+    setSuccessMessage(null)
+    setIsOptimizing(false)
     if (inputRef.current) inputRef.current.value = ""
     onOpenChange(false)
   }
@@ -111,6 +140,14 @@ export function AddAttachmentDialog({ open, onOpenChange, ticketId, canAttachCan
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
+          {successMessage && (
+            <Alert>
+              <AlertDescription>{successMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          {isOptimizing && <p className="text-xs text-muted-foreground">Otimizando imagem...</p>}
 
           <input
             ref={inputRef}
@@ -173,10 +210,10 @@ export function AddAttachmentDialog({ open, onOpenChange, ticketId, canAttachCan
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
+          <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting || isOptimizing}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting || !file || !category}>
+          <Button onClick={handleSubmit} disabled={isSubmitting || isOptimizing || !file || !category}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

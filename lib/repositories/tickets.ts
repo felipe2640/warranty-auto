@@ -3,12 +3,17 @@ import { createFolder, uploadFile } from "../drive/client"
 import type { Ticket, Attachment, TimelineEntry, AuditEntry, Status } from "../schemas"
 import { STATUS_ORDER } from "../schemas"
 import { buildSearchTokens, normalizeSearchToken } from "@/lib/search"
+import { DEFAULT_TIMEZONE, addDaysDateOnly, isDateOnlyString, toDateOnlyString, todayDateOnly } from "@/lib/date"
 import type * as FirebaseFirestore from "firebase-admin/firestore"
 
 const TICKETS_COLLECTION = "tickets"
 const TIMELINE_COLLECTION = "timeline"
 const ATTACHMENTS_COLLECTION = "attachments"
 const AUDIT_COLLECTION = "audit"
+
+function stripUndefined<T extends Record<string, unknown>>(data: T): T {
+  return Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)) as T
+}
 
 function isMissingIndexError(error: unknown) {
   if (!error || typeof error !== "object") return false
@@ -23,6 +28,19 @@ function toDate(timestamp: { toDate: () => Date } | Date | string | undefined): 
   if (timestamp instanceof Date) return timestamp
   if (typeof timestamp === "string") return new Date(timestamp)
   if (typeof timestamp.toDate === "function") return timestamp.toDate()
+  return undefined
+}
+
+function toDateOnly(value: unknown): string | undefined {
+  if (!value) return undefined
+  if (typeof value === "string") {
+    if (isDateOnlyString(value)) return value
+    return toDateOnlyString(value)
+  }
+  if (value instanceof Date) return toDateOnlyString(value)
+  if (typeof (value as { toDate?: () => Date }).toDate === "function") {
+    return toDateOnlyString((value as { toDate: () => Date }).toDate())
+  }
   return undefined
 }
 
@@ -52,15 +70,15 @@ function serializeTicket(doc: FirebaseFirestore.DocumentSnapshot): Ticket | null
     defeitoPeca: data.defeitoPeca,
     numeroVendaOuCfe: data.numeroVendaOuCfe,
     numeroVendaOuCfeFornecedor: data.numeroVendaOuCfeFornecedor,
-    dataVenda: toDate(data.dataVenda)!,
-    dataRecebendoPeca: toDate(data.dataRecebendoPeca)!,
-    dataIndoFornecedor: toDate(data.dataIndoFornecedor),
+    dataVenda: toDateOnly(data.dataVenda)!,
+    dataRecebendoPeca: toDateOnly(data.dataRecebendoPeca)!,
+    dataIndoFornecedor: toDateOnly(data.dataIndoFornecedor),
     obs: data.obs,
     supplierId: data.supplierId,
     supplierName: data.supplierName,
     slaDays: data.slaDays,
-    dueDate: toDate(data.dueDate),
-    nextActionAt: toDate(data.nextActionAt),
+    dueDate: toDateOnly(data.dueDate),
+    nextActionAt: toDateOnly(data.nextActionAt),
     nextActionNote: data.nextActionNote,
     deliveredToSupplierAt: toDate(data.deliveredToSupplierAt),
     supplierResponse: data.supplierResponse,
@@ -203,6 +221,30 @@ export async function updateTicketStatus(
   })
 }
 
+export async function updateTicketEditableFields(
+  ticketId: string,
+  tenantId: string,
+  patch: Partial<Ticket>,
+): Promise<Ticket | null> {
+  const ticketRef = getAdminDb().collection(TICKETS_COLLECTION).doc(ticketId)
+  const snapshot = await ticketRef.get()
+
+  if (!snapshot.exists) return null
+
+  const data = snapshot.data()
+  if (!data || data.tenantId !== tenantId) return null
+
+  const now = new Date()
+  await ticketRef.update(stripUndefined({ ...patch, updatedAt: now }))
+
+  const updatedSnapshot = await ticketRef.get()
+  return serializeTicket(updatedSnapshot)
+}
+
+export async function addTicketAuditEntry(ticketId: string, entry: Omit<AuditEntry, "id">): Promise<void> {
+  await getAdminDb().collection(TICKETS_COLLECTION).doc(ticketId).collection(AUDIT_COLLECTION).add(entry)
+}
+
 export async function revertTicketStatus(
   ticketId: string,
   targetStatus: Status,
@@ -264,8 +306,8 @@ export interface ListTicketsOptions {
   search?: string
   onlyOverdue?: boolean
   onlyActionToday?: boolean
-  startDate?: Date
-  endDate?: Date
+  startDate?: string
+  endDate?: string
   limit?: number
   startAfter?: string
 }
@@ -289,13 +331,11 @@ export async function listTickets(options: ListTicketsOptions): Promise<{ ticket
     }
 
     if (options.onlyOverdue) {
-      query = query.where("isClosed", "==", false).where("dueDate", "<", new Date()).orderBy("dueDate", "asc")
+      const today = todayDateOnly(DEFAULT_TIMEZONE)
+      query = query.where("isClosed", "==", false).where("dueDate", "<", today).orderBy("dueDate", "asc")
     } else if (options.onlyActionToday) {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const tomorrow = new Date(today)
-      tomorrow.setDate(tomorrow.getDate() + 1)
-      query = query.where("nextActionAt", ">=", today).where("nextActionAt", "<", tomorrow).orderBy("nextActionAt", "asc")
+      const today = todayDateOnly(DEFAULT_TIMEZONE)
+      query = query.where("nextActionAt", "==", today)
     } else {
       query = query.orderBy("createdAt", "desc")
     }
@@ -356,21 +396,17 @@ async function listTicketsWithoutIndex(options: ListTicketsOptions): Promise<{ t
     }
   }
 
-  const now = new Date()
+  const today = todayDateOnly(DEFAULT_TIMEZONE)
   if (options.onlyOverdue) {
-    tickets = tickets.filter((ticket) => !ticket.isClosed && ticket.dueDate && ticket.dueDate < now)
+    tickets = tickets.filter((ticket) => !ticket.isClosed && ticket.dueDate && ticket.dueDate < today)
   } else if (options.onlyActionToday) {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    tickets = tickets.filter((ticket) => ticket.nextActionAt && ticket.nextActionAt >= today && ticket.nextActionAt < tomorrow)
+    tickets = tickets.filter((ticket) => ticket.nextActionAt && ticket.nextActionAt === today)
   }
 
   if (options.onlyOverdue) {
-    tickets.sort((a, b) => (a.dueDate?.getTime() || 0) - (b.dueDate?.getTime() || 0))
+    tickets.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
   } else if (options.onlyActionToday) {
-    tickets.sort((a, b) => (a.nextActionAt?.getTime() || 0) - (b.nextActionAt?.getTime() || 0))
+    tickets.sort((a, b) => (a.nextActionAt || "").localeCompare(b.nextActionAt || ""))
   } else {
     tickets.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
   }
@@ -409,7 +445,7 @@ export async function getTicketTimeline(ticketId: string): Promise<TimelineEntry
       text: data.text,
       userId: data.userId,
       userName: data.userName,
-      nextActionAt: toDate(data.nextActionAt),
+      nextActionAt: toDateOnly(data.nextActionAt),
       nextActionNote: data.nextActionNote,
       createdAt: toDate(data.createdAt)!,
     }
@@ -419,7 +455,7 @@ export async function getTicketTimeline(ticketId: string): Promise<TimelineEntry
 export async function addTimelineEntry(
   ticketId: string,
   entry: Omit<TimelineEntry, "id" | "ticketId" | "createdAt">,
-  updateNextAction?: { nextActionAt: Date; nextActionNote?: string },
+  updateNextAction?: { nextActionAt: string; nextActionNote?: string },
 ): Promise<string> {
   const now = new Date()
 
@@ -593,8 +629,8 @@ export async function findAttachmentByDriveFileId(driveFileId: string): Promise<
 export async function listTicketsByNextActionRange(options: {
   tenantId: string
   statuses?: Status[]
-  start: Date
-  end: Date
+  start: string
+  end: string
   limit?: number
   startAfter?: string
 }): Promise<{ tickets: Ticket[]; nextCursor?: string }> {
@@ -636,8 +672,8 @@ export async function listTicketsByNextActionRange(options: {
 async function listTicketsByNextActionRangeWithoutIndex(options: {
   tenantId: string
   statuses?: Status[]
-  start: Date
-  end: Date
+  start: string
+  end: string
   limit?: number
   startAfter?: string
 }): Promise<{ tickets: Ticket[]; nextCursor?: string }> {
@@ -656,7 +692,7 @@ async function listTicketsByNextActionRangeWithoutIndex(options: {
     (ticket) => ticket.nextActionAt && ticket.nextActionAt >= options.start && ticket.nextActionAt <= options.end,
   )
 
-  tickets.sort((a, b) => (a.nextActionAt?.getTime() || 0) - (b.nextActionAt?.getTime() || 0))
+  tickets.sort((a, b) => (a.nextActionAt || "").localeCompare(b.nextActionAt || ""))
 
   const limit = options.limit || 20
   let startIndex = 0
@@ -689,10 +725,8 @@ export async function hasAttachmentOfCategory(ticketId: string, category: string
 
 export async function getDashboardCounts(tenantId: string, storeId?: string) {
   const now = new Date()
-  const today = new Date(now)
-  today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
+  const today = todayDateOnly(DEFAULT_TIMEZONE)
+  const tomorrow = addDaysDateOnly(today, 1)
   const thirtyDaysAgo = new Date(now)
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
@@ -720,8 +754,8 @@ export async function getDashboardCounts(tenantId: string, storeId?: string) {
     const data = doc.data()
     const status = data.status
     total++
-    const nextActionAt = toDate(data.nextActionAt)
-    const dueDate = toDate(data.dueDate)
+    const nextActionAt = toDateOnly(data.nextActionAt)
+    const dueDate = toDateOnly(data.dueDate)
     const closedAt = toDate(data.closedAt)
 
     // Count by status
@@ -738,7 +772,7 @@ export async function getDashboardCounts(tenantId: string, storeId?: string) {
     }
 
     // Overdue
-    if (dueDate && dueDate < now && status !== "ENCERRADO") {
+    if (dueDate && dueDate < today && status !== "ENCERRADO") {
       overdue++
     }
 

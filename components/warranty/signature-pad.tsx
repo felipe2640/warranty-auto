@@ -12,6 +12,30 @@ interface SignaturePadProps {
   disabled?: boolean
 }
 
+const MAX_SIGNATURE_WIDTH = 320
+const MAX_SIGNATURE_HEIGHT = 160
+
+function exportSignatureDataUrl(canvas: HTMLCanvasElement) {
+  const scale = Math.min(1, MAX_SIGNATURE_WIDTH / canvas.width, MAX_SIGNATURE_HEIGHT / canvas.height)
+  const targetWidth = Math.max(1, Math.round(canvas.width * scale))
+  const targetHeight = Math.max(1, Math.round(canvas.height * scale))
+
+  const output = document.createElement("canvas")
+  output.width = targetWidth
+  output.height = targetHeight
+
+  const ctx = output.getContext("2d")
+  if (!ctx) {
+    return canvas.toDataURL("image/png")
+  }
+
+  ctx.fillStyle = "#fff"
+  ctx.fillRect(0, 0, targetWidth, targetHeight)
+  ctx.drawImage(canvas, 0, 0, targetWidth, targetHeight)
+
+  return output.toDataURL("image/png")
+}
+
 function SignaturePadComponent({ onSave, onClear, disabled }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
@@ -98,7 +122,7 @@ function SignaturePadComponent({ onSave, onClear, disabled }: SignaturePadProps)
     const canvas = canvasRef.current
     if (!canvas || !hasSignature) return
 
-    const dataUrl = canvas.toDataURL("image/png")
+    const dataUrl = exportSignatureDataUrl(canvas)
     onSave(dataUrl)
   }
 

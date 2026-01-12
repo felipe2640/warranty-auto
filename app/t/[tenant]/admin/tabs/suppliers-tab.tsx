@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Plus, MoreHorizontal, Loader2 } from "lucide-react"
 import type { Supplier } from "@/lib/schemas"
+import { formatCpfCnpj, formatPhoneBR, onlyDigits } from "@/lib/format"
 
 interface SuppliersTabProps {
   suppliers: Supplier[]
@@ -23,6 +25,7 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Form state
   const [name, setName] = useState("")
@@ -38,6 +41,7 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
     setPhone("")
     setSlaDays("30")
     setEditingSupplier(null)
+    setError(null)
   }
 
   const openCreateDialog = () => {
@@ -48,15 +52,16 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
   const openEditDialog = (supplier: Supplier) => {
     setEditingSupplier(supplier)
     setName(supplier.name)
-    setCnpj(supplier.cnpj || "")
+    setCnpj(onlyDigits(supplier.cnpj || ""))
     setEmail(supplier.email || "")
-    setPhone(supplier.phone || "")
+    setPhone(onlyDigits(supplier.phone || ""))
     setSlaDays(String(supplier.slaDays))
     setIsDialogOpen(true)
   }
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
+    setError(null)
     try {
       const data = {
         name,
@@ -66,18 +71,25 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
         slaDays: Number.parseInt(slaDays) || 30,
       }
 
+      let response: Response
       if (editingSupplier) {
-        await fetch(`/api/admin/suppliers/${editingSupplier.id}`, {
+        response = await fetch(`/api/admin/suppliers/${editingSupplier.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
         })
       } else {
-        await fetch("/api/admin/suppliers", {
+        response = await fetch("/api/admin/suppliers", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
         })
+      }
+
+      const responseData = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setError(responseData.error || "Erro ao salvar fornecedor")
+        return
       }
 
       setIsDialogOpen(false)
@@ -85,6 +97,7 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
       onRefresh ? onRefresh() : router.refresh()
     } catch (error) {
       console.error("Error saving supplier:", error)
+      setError("Erro inesperado ao salvar fornecedor")
     } finally {
       setIsSubmitting(false)
     }
@@ -133,9 +146,9 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
               {suppliers.map((supplier) => (
                 <TableRow key={supplier.id}>
                   <TableCell className="font-medium">{supplier.name}</TableCell>
-                  <TableCell>{supplier.cnpj || "-"}</TableCell>
+                  <TableCell>{supplier.cnpj ? formatCpfCnpj(supplier.cnpj) : "-"}</TableCell>
                   <TableCell>{supplier.email || "-"}</TableCell>
-                  <TableCell>{supplier.phone || "-"}</TableCell>
+                  <TableCell>{supplier.phone ? formatPhoneBR(supplier.phone) : "-"}</TableCell>
                   <TableCell>{supplier.slaDays}</TableCell>
                   <TableCell>
                     {supplier.active ? (
@@ -179,6 +192,11 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2">
               <Label>Nome *</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do fornecedor" />
@@ -186,7 +204,11 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
 
             <div className="space-y-2">
               <Label>CNPJ</Label>
-              <Input value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0000-00" />
+              <Input
+                value={formatCpfCnpj(cnpj)}
+                onChange={(e) => setCnpj(onlyDigits(e.target.value).slice(0, 14))}
+                placeholder="00.000.000/0000-00"
+              />
             </div>
 
             <div className="space-y-2">
@@ -201,7 +223,11 @@ export function SuppliersTab({ suppliers, onRefresh }: SuppliersTabProps) {
 
             <div className="space-y-2">
               <Label>Telefone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(00) 00000-0000" />
+              <Input
+                value={formatPhoneBR(phone)}
+                onChange={(e) => setPhone(onlyDigits(e.target.value).slice(0, 11))}
+                placeholder="(00) 00000-0000"
+              />
             </div>
 
             <div className="space-y-2">

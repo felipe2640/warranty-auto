@@ -1,5 +1,7 @@
 import { z } from "zod"
 import { RoleEnum, type Role } from "./roles"
+import { onlyDigits } from "./format"
+import { isDateOnlyString, toDateOnlyString } from "./date"
 import { isValidCell, isValidCpfCnpj, normalizeDigits } from "./validation"
 
 export { RoleEnum }
@@ -29,6 +31,24 @@ export const STATUS_ORDER: Status[] = [
 // Timeline entry types
 export const TimelineTypeEnum = z.enum(["OBS", "LIGACAO", "EMAIL", "PRAZO", "STATUS_CHANGE", "DOCUMENTO"])
 export type TimelineType = z.infer<typeof TimelineTypeEnum>
+
+export const TimelineNextActionRequiredTypes = ["PRAZO", "LIGACAO", "EMAIL"] as const
+export type TimelineNextActionRequiredType = (typeof TimelineNextActionRequiredTypes)[number]
+
+const dateOnlySchema = z.preprocess((value) => {
+  if (value === undefined || value === null || value === "") return undefined
+  if (value instanceof Date) return toDateOnlyString(value)
+  if (typeof value === "string") return toDateOnlyString(value)
+  return value
+}, z.string().refine((value) => isDateOnlyString(value), "Data inválida"))
+
+const requiredDateOnlySchema = (message: string) =>
+  z.preprocess((value) => {
+    if (value === undefined || value === null || value === "") return ""
+    if (value instanceof Date) return toDateOnlyString(value)
+    if (typeof value === "string") return toDateOnlyString(value)
+    return value
+  }, z.string().min(1, message).refine((value) => isDateOnlyString(value), "Data inválida"))
 
 // Attachment categories
 export const AttachmentCategoryEnum = z.enum([
@@ -64,9 +84,15 @@ export const StoreSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   code: z.string().min(1).optional(),
-  cnpj: z.string().optional(),
+  cnpj: z
+    .string()
+    .optional()
+    .transform((value) => (value ? onlyDigits(value).slice(0, 14) : value)),
   address: z.string().optional(),
-  phone: z.string().optional(),
+  phone: z
+    .string()
+    .optional()
+    .transform((value) => (value ? onlyDigits(value).slice(0, 11) : value)),
   tenantId: z.string(),
   active: z.boolean().default(true),
   createdAt: z.date(),
@@ -79,8 +105,14 @@ export const SupplierSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   slaDays: z.number().int().min(1),
-  cnpj: z.string().optional(),
-  phone: z.string().optional(),
+  cnpj: z
+    .string()
+    .optional()
+    .transform((value) => (value ? onlyDigits(value).slice(0, 14) : value)),
+  phone: z
+    .string()
+    .optional()
+    .transform((value) => (value ? onlyDigits(value).slice(0, 11) : value)),
   email: z.string().email().optional(),
   tenantId: z.string(),
   active: z.boolean().default(true),
@@ -115,7 +147,7 @@ export const TimelineEntrySchema = z.object({
   text: z.string(),
   userId: z.string(),
   userName: z.string(),
-  nextActionAt: z.date().optional(),
+  nextActionAt: dateOnlySchema.optional(),
   nextActionNote: z.string().optional(),
   createdAt: z.date(),
 })
@@ -177,17 +209,17 @@ export const TicketSchema = z.object({
   defeitoPeca: z.string().min(1),
   numeroVendaOuCfe: z.string().min(1),
   numeroVendaOuCfeFornecedor: z.string().optional(),
-  dataVenda: z.date(),
-  dataRecebendoPeca: z.date(),
-  dataIndoFornecedor: z.date().optional(),
+  dataVenda: dateOnlySchema,
+  dataRecebendoPeca: dateOnlySchema,
+  dataIndoFornecedor: dateOnlySchema.optional(),
   obs: z.string().optional(),
 
   // Workflow
   supplierId: z.string().optional(),
   supplierName: z.string().optional(),
   slaDays: z.number().int().optional(),
-  dueDate: z.date().optional(),
-  nextActionAt: z.date().optional(),
+  dueDate: dateOnlySchema.optional(),
+  nextActionAt: dateOnlySchema.optional(),
   nextActionNote: z.string().optional(),
   deliveredToSupplierAt: z.date().optional(),
   supplierResponse: z.string().optional(),
@@ -251,9 +283,9 @@ export const CreateTicketFormSchema = z.object({
   defeitoPeca: z.string().min(1, "Defeito é obrigatório"),
   numeroVendaOuCfe: z.string().min(1, "Número da venda/CFe é obrigatório"),
   numeroVendaOuCfeFornecedor: z.string().optional(),
-  dataVenda: z.string().min(1, "Data da venda é obrigatória"),
-  dataRecebendoPeca: z.string().min(1, "Data de recebimento é obrigatória"),
-  dataIndoFornecedor: z.string().optional(),
+  dataVenda: requiredDateOnlySchema("Data da venda é obrigatória"),
+  dataRecebendoPeca: requiredDateOnlySchema("Data de recebimento é obrigatória"),
+  dataIndoFornecedor: dateOnlySchema.optional(),
   obs: z.string().optional(),
 
   // Store
@@ -274,8 +306,16 @@ export const CreateTicketInputSchema = z.object({
   retorno: z.string().optional(),
   nomeRazaoSocial: z.string().min(1),
   nomeFantasiaApelido: z.string().optional(),
-  cpfCnpj: z.string().min(1).refine((value) => isValidCpfCnpj(value), "CPF/CNPJ deve ter 11 ou 14 dígitos"),
-  celular: z.string().min(1).refine((value) => isValidCell(value), "Celular deve ter ao menos 10 dígitos"),
+  cpfCnpj: z
+    .string()
+    .min(1)
+    .transform((value) => onlyDigits(value).slice(0, 14))
+    .refine((value) => isValidCpfCnpj(value), "CPF/CNPJ deve ter 11 ou 14 dígitos"),
+  celular: z
+    .string()
+    .min(1)
+    .transform((value) => onlyDigits(value).slice(0, 11))
+    .refine((value) => isValidCell(value), "Celular deve ter ao menos 10 dígitos"),
   isWhatsapp: z.boolean().default(false),
   descricaoPeca: z.string().min(1),
   quantidade: z.number().int().min(1),
@@ -284,13 +324,66 @@ export const CreateTicketInputSchema = z.object({
   defeitoPeca: z.string().min(1),
   numeroVendaOuCfe: z.string().min(1),
   numeroVendaOuCfeFornecedor: z.string().optional(),
-  dataVenda: z.date(),
-  dataRecebendoPeca: z.date(),
-  dataIndoFornecedor: z.date().optional(),
+  dataVenda: dateOnlySchema,
+  dataRecebendoPeca: dateOnlySchema,
+  dataIndoFornecedor: dateOnlySchema.optional(),
   obs: z.string().optional(),
   createdBy: z.string().min(1),
   signatureDataUrl: z.string().min(1),
 })
+
+const optionalTrimmedString = z.preprocess((value) => {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== "string") return value
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
+}, z.string().optional())
+
+const requiredTrimmedString = z.preprocess((value) => {
+  if (value === undefined || value === null) return value
+  if (typeof value !== "string") return value
+  return value.trim()
+}, z.string().min(1))
+
+export const UpdateTicketDetailsSchema = z.object({
+  // Cliente
+  nomeRazaoSocial: requiredTrimmedString.optional(),
+  nomeFantasiaApelido: optionalTrimmedString,
+  cpfCnpj: z
+    .string()
+    .min(1)
+    .transform((value) => onlyDigits(value).slice(0, 14))
+    .refine((value) => isValidCpfCnpj(value), "CPF/CNPJ deve ter 11 ou 14 dígitos")
+    .optional(),
+  celular: z
+    .string()
+    .min(1)
+    .transform((value) => onlyDigits(value).slice(0, 11))
+    .refine((value) => isValidCell(value), "Celular deve ter ao menos 10 dígitos")
+    .optional(),
+  isWhatsapp: z.boolean().optional(),
+
+  // Peça
+  descricaoPeca: requiredTrimmedString.optional(),
+  quantidade: z
+    .preprocess((value) => {
+      if (value === undefined || value === null || value === "") return undefined
+      if (typeof value === "string") return Number(value)
+      return value
+    }, z.number().int().min(1))
+    .optional(),
+  ref: optionalTrimmedString,
+  codigo: optionalTrimmedString,
+  defeitoPeca: requiredTrimmedString.optional(),
+  numeroVendaOuCfe: requiredTrimmedString.optional(),
+  numeroVendaOuCfeFornecedor: optionalTrimmedString,
+  obs: optionalTrimmedString,
+
+  // Loja & Fornecedor
+  storeId: z.string().min(1).optional(),
+  supplierId: z.string().min(1).optional(),
+})
+export type UpdateTicketDetailsInput = z.infer<typeof UpdateTicketDetailsSchema>
 
 export const userCreateSchema = z.object({
   email: z.string().email(),
@@ -319,11 +412,30 @@ export const LoginFormSchema = z.object({
 export type LoginFormData = z.infer<typeof LoginFormSchema>
 
 // Timeline form schema
-export const TimelineFormSchema = z.object({
-  type: TimelineTypeEnum,
-  text: z.string().min(1, "Texto é obrigatório"),
-  setNextAction: z.boolean().default(false),
-  nextActionAt: z.string().optional(),
-  nextActionNote: z.string().optional(),
-})
+export const TimelineFormSchema = z
+  .object({
+    type: TimelineTypeEnum,
+    text: z.string().min(1, "Texto é obrigatório"),
+    setNextAction: z.boolean().default(false),
+    nextActionAt: dateOnlySchema.optional(),
+    nextActionNote: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const requiresNextAction = TimelineNextActionRequiredTypes.includes(data.type as TimelineNextActionRequiredType)
+    if (requiresNextAction && !data.nextActionAt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["nextActionAt"],
+        message: "Data da próxima ação é obrigatória",
+      })
+    }
+
+    if (data.setNextAction && !data.nextActionAt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["nextActionAt"],
+        message: "Data da próxima ação é obrigatória",
+      })
+    }
+  })
 export type TimelineFormData = z.infer<typeof TimelineFormSchema>

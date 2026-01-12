@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Plus, MoreHorizontal, Loader2, UserCheck, UserX, Key } from "lucide-react"
 import type { User, Store, Role } from "@/lib/schemas"
 
@@ -34,6 +35,7 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Form state
   const [email, setEmail] = useState("")
@@ -51,6 +53,7 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
     setStoreId("")
     setActive(true)
     setEditingUser(null)
+    setError(null)
   }
 
   const openCreateSheet = () => {
@@ -70,29 +73,35 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
+    setError(null)
     try {
+      let response: Response
       if (editingUser) {
-        await fetch(`/api/admin/users/${editingUser.id}`, {
+        response = await fetch(`/api/admin/users/${editingUser.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, role, storeId: storeId || null, active }),
         })
-        setIsSheetOpen(false)
-        resetForm()
       } else {
-        const res = await fetch("/api/admin/users", {
+        response = await fetch("/api/admin/users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password, name, role, storeId: storeId || null }),
         })
-        if (res.ok) {
-          setIsSheetOpen(false)
-          resetForm()
-        }
       }
+
+      const responseData = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setError(responseData.error || "Erro ao salvar usuário")
+        return
+      }
+
+      setIsSheetOpen(false)
+      resetForm()
       onRefresh ? onRefresh() : router.refresh()
     } catch (error) {
       console.error("[v0] Error saving user:", error)
+      setError("Erro inesperado ao salvar usuário")
     } finally {
       setIsSubmitting(false)
     }
@@ -265,6 +274,11 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
 
           <>
             <div className="space-y-4 py-6">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
               {!editingUser && (
                 <>
                   <div className="space-y-2">

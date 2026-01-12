@@ -27,8 +27,22 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
+    const normalizeOptionalString = (value: unknown) => {
+      if (typeof value !== "string") return undefined
+      const trimmed = value.trim()
+      return trimmed ? trimmed : undefined
+    }
+
+    const name = typeof body.name === "string" ? body.name.trim() : body.name
+    const slaDays = typeof body.slaDays === "string" ? Number.parseInt(body.slaDays, 10) : body.slaDays
+
     const validation = supplierSchema.omit({ id: true, createdAt: true, updatedAt: true }).safeParse({
       ...body,
+      name,
+      slaDays,
+      cnpj: normalizeOptionalString(body.cnpj),
+      email: normalizeOptionalString(body.email),
+      phone: normalizeOptionalString(body.phone),
       tenantId: session.tenantId,
     })
 

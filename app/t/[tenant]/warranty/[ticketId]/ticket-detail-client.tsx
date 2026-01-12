@@ -16,10 +16,12 @@ import { RevertStageDialog } from "./dialogs/revert-stage-dialog"
 import { AddTimelineDialog } from "./dialogs/add-timeline-dialog"
 import { AddAttachmentDialog } from "./dialogs/add-attachment-dialog"
 import { SetSupplierDialog } from "./dialogs/set-supplier-dialog"
+import { EditTicketDialog } from "./dialogs/edit-ticket-dialog"
 import { getUserPermissions } from "@/lib/permissions"
-import type { Ticket, TimelineEntry, Attachment, AuditEntry, Supplier, Role, Status } from "@/lib/schemas"
+import type { Ticket, TimelineEntry, Attachment, AuditEntry, Supplier, Role, Status, Store, TenantSettings } from "@/lib/schemas"
 import type { NextTransitionChecklist, StageSummary } from "@/lib/types/warranty"
-import { ArrowLeft, ChevronRight, Plus, Paperclip, RotateCcw, AlertTriangle, Calendar } from "lucide-react"
+import { ArrowLeft, ChevronRight, Plus, Paperclip, RotateCcw, AlertTriangle, Calendar, Pencil } from "lucide-react"
+import { todayDateOnly } from "@/lib/date"
 
 interface TicketDetailClientProps {
   tenant: string
@@ -28,6 +30,8 @@ interface TicketDetailClientProps {
   attachments: Attachment[]
   audit: AuditEntry[]
   suppliers: Supplier[]
+  stores: Store[]
+  tenantPolicies?: TenantSettings["policies"] | null
   userRole: Role
   userId: string
   userName: string
@@ -42,6 +46,8 @@ export function TicketDetailClient({
   attachments: initialAttachments,
   audit: initialAudit,
   suppliers,
+  stores,
+  tenantPolicies,
   userRole,
   userId,
   userName,
@@ -62,13 +68,22 @@ export function TicketDetailClient({
   const [showTimelineDialog, setShowTimelineDialog] = useState(false)
   const [showAttachmentDialog, setShowAttachmentDialog] = useState(false)
   const [showSupplierDialog, setShowSupplierDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+
+  const allowStoreChange = tenantPolicies ? !tenantPolicies.recebedorOnlyOwnStore : true
+  const canEditCustomer = userRole === "ADMIN" || userRole === "RECEBEDOR"
+  const canEditPiece = userRole === "ADMIN" || userRole === "RECEBEDOR" || userRole === "INTERNO"
+  const canEditStore = userRole === "ADMIN" || (userRole === "INTERNO" && allowStoreChange)
+  const canEditSupplier = userRole === "ADMIN" || userRole === "INTERNO"
+  const canEditTicket = canEditCustomer || canEditPiece || canEditStore || canEditSupplier
 
   const canAdvance = transitionChecklist.canAdvance
   const nextStatus = transitionChecklist.nextStatus
   const roleBlocked = !canAdvance && transitionChecklist.items.every((item) => item.satisfied)
 
-  const isOverdue = ticket.dueDate && new Date(ticket.dueDate) < new Date() && ticket.status !== "ENCERRADO"
-  const hasNextAction = ticket.nextActionAt && new Date(ticket.nextActionAt) <= new Date()
+  const today = todayDateOnly()
+  const isOverdue = ticket.dueDate && ticket.dueDate < today && ticket.status !== "ENCERRADO"
+  const hasNextAction = ticket.nextActionAt && ticket.nextActionAt <= today
 
   const refreshData = async () => {
     const response = await fetch(`/api/tickets/${ticket.id}`)
@@ -79,6 +94,19 @@ export function TicketDetailClient({
       setAttachments(data.attachments)
       setTransitionChecklist(data.nextTransitionChecklist)
       setStageSummary(data.stageSummaryMap)
+    }
+  }
+
+  const handleTicketUpdated = (updatedTicket: Ticket & { storeName?: string; supplierName?: string }, timelineEntry?: TimelineEntry) => {
+    setTicket((prev) => ({
+      ...prev,
+      ...updatedTicket,
+      storeName: updatedTicket.storeName ?? prev.storeName,
+      supplierName: updatedTicket.supplierName ?? prev.supplierName,
+    }))
+
+    if (timelineEntry) {
+      setTimeline((prev) => [timelineEntry, ...prev])
     }
   }
 
@@ -131,6 +159,13 @@ export function TicketDetailClient({
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 flex-wrap">
+            {canEditTicket && (
+              <Button size="sm" variant="outline" onClick={() => setShowEditDialog(true)}>
+                <Pencil className="h-4 w-4 mr-1" />
+                Editar
+              </Button>
+            )}
+
             {nextStatus && !roleBlocked && (
               <Button size="sm" onClick={() => setShowAdvanceDialog(true)}>
                 Avançar etapa
@@ -249,6 +284,19 @@ export function TicketDetailClient({
         ticketId={ticket.id}
         suppliers={suppliers}
         onSuccess={refreshData}
+      />
+
+      <EditTicketDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        ticket={ticket}
+        stores={stores}
+        suppliers={suppliers}
+        canEditCustomer={canEditCustomer}
+        canEditPiece={canEditPiece}
+        canEditStore={canEditStore}
+        canEditSupplier={canEditSupplier}
+        onUpdated={handleTicketUpdated}
       />
     </div>
   )

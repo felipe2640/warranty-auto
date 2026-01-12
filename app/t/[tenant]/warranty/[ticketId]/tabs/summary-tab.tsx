@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import type { Ticket } from "@/lib/schemas"
 import { Phone, Calendar, Package, User, Store } from "lucide-react"
+import { formatCpfCnpj, formatDateBR, formatPhoneBR } from "@/lib/format"
+import { diffDaysDateOnly, formatDateOnly, todayDateOnly } from "@/lib/date"
 
 interface TicketSummaryTabProps {
   ticket: Ticket & { storeName: string }
@@ -13,25 +15,9 @@ interface TicketSummaryTabProps {
 }
 
 export function TicketSummaryTab({ ticket, canDefineSupplier, onSetSupplier }: TicketSummaryTabProps) {
-  const formatDate = (date?: Date | string) => {
-    if (!date) return "—"
-    return new Date(date).toLocaleDateString("pt-BR")
-  }
-
-  const formatPhone = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, "")
-    if (cleaned.length === 11) {
-      return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`
-    }
-    return phone
-  }
-
   const getDaysOverdue = () => {
     if (!ticket.dueDate || ticket.status === "ENCERRADO") return null
-    const due = new Date(ticket.dueDate)
-    const now = new Date()
-    const diffTime = now.getTime() - due.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    const diffDays = diffDaysDateOnly(ticket.dueDate, todayDateOnly())
     return diffDays > 0 ? diffDays : null
   }
 
@@ -60,7 +46,7 @@ export function TicketSummaryTab({ ticket, canDefineSupplier, onSetSupplier }: T
           )}
           <div className="flex justify-between">
             <span className="text-muted-foreground">CPF/CNPJ</span>
-            <span className="text-foreground">{ticket.cpfCnpj}</span>
+            <span className="text-foreground">{formatCpfCnpj(ticket.cpfCnpj)}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">Celular</span>
@@ -69,7 +55,7 @@ export function TicketSummaryTab({ ticket, canDefineSupplier, onSetSupplier }: T
               className="flex items-center gap-1 text-primary hover:underline"
             >
               <Phone className="h-3 w-3" />
-              {formatPhone(ticket.celular)}
+              {formatPhoneBR(ticket.celular)}
               {ticket.isWhatsapp && <span className="text-xs">(WhatsApp)</span>}
             </a>
           </div>
@@ -167,29 +153,29 @@ export function TicketSummaryTab({ ticket, canDefineSupplier, onSetSupplier }: T
         <CardContent className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Data da Venda</span>
-            <span className="text-foreground">{formatDate(ticket.dataVenda)}</span>
+            <span className="text-foreground">{formatDateOnly(ticket.dataVenda)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Recebimento da Peça</span>
-            <span className="text-foreground">{formatDate(ticket.dataRecebendoPeca)}</span>
+            <span className="text-foreground">{formatDateOnly(ticket.dataRecebendoPeca)}</span>
           </div>
           {ticket.dataIndoFornecedor && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Envio ao Fornecedor</span>
-              <span className="text-foreground">{formatDate(ticket.dataIndoFornecedor)}</span>
+              <span className="text-foreground">{formatDateOnly(ticket.dataIndoFornecedor)}</span>
             </div>
           )}
           {ticket.deliveredToSupplierAt && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Entregue ao Fornecedor</span>
-              <span className="text-foreground">{formatDate(ticket.deliveredToSupplierAt)}</span>
+              <span className="text-foreground">{formatDateBR(ticket.deliveredToSupplierAt)}</span>
             </div>
           )}
           {ticket.dueDate && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Prazo</span>
               <span className={daysOverdue ? "text-destructive font-medium" : "text-foreground"}>
-                {formatDate(ticket.dueDate)}
+                {formatDateOnly(ticket.dueDate)}
                 {daysOverdue && ` (${daysOverdue}d atraso)`}
               </span>
             </div>
@@ -197,7 +183,7 @@ export function TicketSummaryTab({ ticket, canDefineSupplier, onSetSupplier }: T
           {ticket.nextActionAt && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Próxima Ação</span>
-              <span className="text-foreground">{formatDate(ticket.nextActionAt)}</span>
+              <span className="text-foreground">{formatDateOnly(ticket.nextActionAt)}</span>
             </div>
           )}
           {ticket.nextActionNote && (
@@ -241,7 +227,7 @@ export function TicketSummaryTab({ ticket, canDefineSupplier, onSetSupplier }: T
             {ticket.closedAt && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Encerrado em</span>
-                <span className="text-foreground">{formatDate(ticket.closedAt)}</span>
+                <span className="text-foreground">{formatDateBR(ticket.closedAt)}</span>
               </div>
             )}
           </CardContent>

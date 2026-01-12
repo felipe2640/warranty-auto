@@ -13,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Search, Plus, Filter, X, AlertTriangle, Grid, List } from "lucide-react"
 import { StatusEnum, type Ticket, type Store, type Status, type Role } from "@/lib/schemas"
+import { formatCpfCnpj, formatDateBR, formatPhoneBR } from "@/lib/format"
+import { formatDateOnly, todayDateOnly } from "@/lib/date"
 
 interface WarrantyListClientProps {
   tickets: Ticket[]
@@ -98,7 +100,7 @@ export function WarrantyListClient({
 
   const isOverSla = (ticket: Ticket) => {
     if (!ticket.dueDate || ticket.status === "ENCERRADO") return false
-    return new Date(ticket.dueDate) < new Date()
+    return ticket.dueDate < todayDateOnly()
   }
 
   const getStoreName = (storeId: string) => {
@@ -250,14 +252,19 @@ export function WarrantyListClient({
                         <TableCell className="font-mono font-medium">
                           {ticket.id.slice(0, 8).toUpperCase()}
                         </TableCell>
-                        <TableCell className="max-w-[150px] truncate">{ticket.nomeRazaoSocial}</TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <p className="truncate">{ticket.nomeRazaoSocial}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatCpfCnpj(ticket.cpfCnpj)} • {formatPhoneBR(ticket.celular)}
+                          </p>
+                        </TableCell>
                         <TableCell className="max-w-[150px] truncate">{ticket.descricaoPeca}</TableCell>
                         <TableCell>
                           <StatusBadge status={ticket.status} size="sm" />
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{getStoreName(ticket.storeId)}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {new Date(ticket.createdAt).toLocaleDateString("pt-BR")}
+                          {formatDateBR(ticket.createdAt)}
                         </TableCell>
                         <TableCell>
                           {isOverSla(ticket) ? (
@@ -267,7 +274,7 @@ export function WarrantyListClient({
                             </Badge>
                           ) : ticket.dueDate ? (
                             <span className="text-sm text-muted-foreground">
-                              {new Date(ticket.dueDate).toLocaleDateString("pt-BR")}
+                              {formatDateOnly(ticket.dueDate)}
                             </span>
                           ) : (
                             "-"
@@ -294,9 +301,12 @@ export function WarrantyListClient({
                     </div>
                     <p className="font-medium">{ticket.nomeRazaoSocial}</p>
                     <p className="text-sm text-muted-foreground">{ticket.descricaoPeca}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatCpfCnpj(ticket.cpfCnpj)} • {formatPhoneBR(ticket.celular)}
+                    </p>
                     <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{getStoreName(ticket.storeId)}</span>
-                      <span>{new Date(ticket.createdAt).toLocaleDateString("pt-BR")}</span>
+                      <span>{formatDateBR(ticket.createdAt)}</span>
                     </div>
                     {isOverSla(ticket) && (
                       <Badge variant="destructive" className="mt-2 gap-1">

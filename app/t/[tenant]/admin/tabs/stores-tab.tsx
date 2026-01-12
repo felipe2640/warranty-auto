@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Plus, MoreHorizontal, Loader2 } from "lucide-react"
 import type { Store } from "@/lib/schemas"
+import { formatCpfCnpj, formatPhoneBR, onlyDigits } from "@/lib/format"
 
 interface StoresTabProps {
   stores: Store[]
@@ -23,6 +25,7 @@ export function StoresTab({ stores, onRefresh }: StoresTabProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingStore, setEditingStore] = useState<Store | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Form state
   const [name, setName] = useState("")
@@ -36,6 +39,7 @@ export function StoresTab({ stores, onRefresh }: StoresTabProps) {
     setAddress("")
     setPhone("")
     setEditingStore(null)
+    setError(null)
   }
 
   const openCreateDialog = () => {
@@ -46,27 +50,35 @@ export function StoresTab({ stores, onRefresh }: StoresTabProps) {
   const openEditDialog = (store: Store) => {
     setEditingStore(store)
     setName(store.name)
-    setCnpj(store.cnpj || "")
+    setCnpj(onlyDigits(store.cnpj || ""))
     setAddress(store.address || "")
-    setPhone(store.phone || "")
+    setPhone(onlyDigits(store.phone || ""))
     setIsDialogOpen(true)
   }
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
+    setError(null)
     try {
+      let response: Response
       if (editingStore) {
-        await fetch(`/api/admin/stores/${editingStore.id}`, {
+        response = await fetch(`/api/admin/stores/${editingStore.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, cnpj, address, phone }),
         })
       } else {
-        await fetch("/api/admin/stores", {
+        response = await fetch("/api/admin/stores", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, cnpj, address, phone }),
         })
+      }
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setError(data.error || "Erro ao salvar loja")
+        return
       }
 
       setIsDialogOpen(false)
@@ -74,6 +86,7 @@ export function StoresTab({ stores, onRefresh }: StoresTabProps) {
       onRefresh ? onRefresh() : router.refresh()
     } catch (error) {
       console.error("Error saving store:", error)
+      setError("Erro inesperado ao salvar loja")
     } finally {
       setIsSubmitting(false)
     }
@@ -121,9 +134,9 @@ export function StoresTab({ stores, onRefresh }: StoresTabProps) {
               {stores.map((store) => (
                 <TableRow key={store.id}>
                   <TableCell className="font-medium">{store.name}</TableCell>
-                  <TableCell>{store.cnpj || "-"}</TableCell>
+                  <TableCell>{store.cnpj ? formatCpfCnpj(store.cnpj) : "-"}</TableCell>
                   <TableCell className="max-w-[200px] truncate">{store.address || "-"}</TableCell>
-                  <TableCell>{store.phone || "-"}</TableCell>
+                  <TableCell>{store.phone ? formatPhoneBR(store.phone) : "-"}</TableCell>
                   <TableCell>
                     {store.active ? (
                       <Badge className="bg-green-100 text-green-800">Ativa</Badge>
@@ -166,6 +179,11 @@ export function StoresTab({ stores, onRefresh }: StoresTabProps) {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2">
               <Label>Nome *</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da loja" />
@@ -173,7 +191,11 @@ export function StoresTab({ stores, onRefresh }: StoresTabProps) {
 
             <div className="space-y-2">
               <Label>CNPJ</Label>
-              <Input value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0000-00" />
+              <Input
+                value={formatCpfCnpj(cnpj)}
+                onChange={(e) => setCnpj(onlyDigits(e.target.value).slice(0, 14))}
+                placeholder="00.000.000/0000-00"
+              />
             </div>
 
             <div className="space-y-2">
@@ -183,7 +205,11 @@ export function StoresTab({ stores, onRefresh }: StoresTabProps) {
 
             <div className="space-y-2">
               <Label>Telefone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(00) 00000-0000" />
+              <Input
+                value={formatPhoneBR(phone)}
+                onChange={(e) => setPhone(onlyDigits(e.target.value).slice(0, 11))}
+                placeholder="(00) 00000-0000"
+              />
             </div>
           </div>
 

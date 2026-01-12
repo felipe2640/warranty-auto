@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { TimelineFormSchema, type TimelineFormData, TimelineTypeEnum } from "@/lib/schemas"
+import { TimelineFormSchema, type TimelineFormData, TimelineNextActionRequiredTypes, TimelineTypeEnum } from "@/lib/schemas"
 import { Loader2, AlertCircle } from "lucide-react"
 
 interface AddTimelineDialogProps {
@@ -59,6 +59,23 @@ export function AddTimelineDialog({
 
   const watchSetNextAction = watch("setNextAction")
   const watchType = watch("type")
+  const requiresNextAction = TimelineNextActionRequiredTypes.includes(
+    watchType as (typeof TimelineNextActionRequiredTypes)[number],
+  )
+
+  useEffect(() => {
+    if (requiresNextAction) {
+      setValue("setNextAction", true, { shouldValidate: true })
+    }
+  }, [requiresNextAction, setValue])
+
+  const availableTypes = TimelineTypeEnum.options.filter((type) => {
+    if (type === "STATUS_CHANGE") return false
+    if (!canSetNextAction && TimelineNextActionRequiredTypes.includes(type as (typeof TimelineNextActionRequiredTypes)[number])) {
+      return false
+    }
+    return true
+  })
 
   const onSubmit = async (data: TimelineFormData) => {
     setError(null)
@@ -115,13 +132,11 @@ export function AddTimelineDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TimelineTypeEnum.options
-                  .filter((t) => t !== "STATUS_CHANGE")
-                  .map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {TYPE_LABELS[type]}
-                    </SelectItem>
-                  ))}
+                {availableTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {TYPE_LABELS[type]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -139,15 +154,19 @@ export function AddTimelineDialog({
                   id="setNextAction"
                   checked={watchSetNextAction}
                   onCheckedChange={(checked) => setValue("setNextAction", checked)}
+                  disabled={requiresNextAction}
                 />
                 <Label htmlFor="setNextAction">Definir próxima ação</Label>
               </div>
 
-              {watchSetNextAction && (
+              {(watchSetNextAction || requiresNextAction) && (
                 <div className="space-y-3 pl-4 border-l-2 border-primary/20">
                   <div className="space-y-2">
                     <Label>Data da próxima ação *</Label>
                     <Input type="date" {...register("nextActionAt")} />
+                    {errors.nextActionAt && (
+                      <p className="text-sm text-destructive">{errors.nextActionAt.message}</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">

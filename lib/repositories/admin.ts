@@ -2,6 +2,10 @@ import { getAdminAuth, getAdminDb } from "../firebase/admin"
 import type { User, Store, Supplier, TenantSettings } from "../schemas"
 import type { FirebaseFirestore } from "firebase-admin/firestore"
 
+function stripUndefined<T extends Record<string, unknown>>(data: T): T {
+  return Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)) as T
+}
+
 function isMissingIndexError(error: unknown) {
   if (!error || typeof error !== "object") return false
   const maybeError = error as { code?: unknown; message?: unknown }
@@ -64,17 +68,18 @@ export async function createUser(
   })
 
   const now = new Date()
+  const userData = stripUndefined({
+    ...data,
+    id: userRecord.uid,
+    createdAt: now,
+    updatedAt: now,
+  })
 
   // Create Firestore user document
   await getAdminDb()
     .collection("users")
     .doc(userRecord.uid)
-    .set({
-      ...data,
-      id: userRecord.uid,
-      createdAt: now,
-      updatedAt: now,
-    })
+    .set(userData)
 
   return { userId: userRecord.uid, temporaryPassword }
 }
@@ -85,10 +90,7 @@ export async function updateUser(userId: string, data: Partial<User>): Promise<v
   await getAdminDb()
     .collection("users")
     .doc(userId)
-    .update({
-      ...data,
-      updatedAt: now,
-    })
+    .update(stripUndefined({ ...data, updatedAt: now }))
 
   // Update Auth if email changed
   if (data.email) {
@@ -136,13 +138,32 @@ export async function listStores(tenantId: string): Promise<Store[]> {
   return stores.sort(byNameAsc)
 }
 
+export async function getStoreById(storeId: string, tenantId: string): Promise<Store | null> {
+  const doc = await getAdminDb().collection("stores").doc(storeId).get()
+  if (!doc.exists) return null
+
+  const data = doc.data()!
+  if (data.tenantId !== tenantId) return null
+
+  return {
+    id: doc.id,
+    name: data.name,
+    code: data.code,
+    cnpj: data.cnpj,
+    address: data.address,
+    phone: data.phone,
+    tenantId: data.tenantId,
+    active: data.active,
+    createdAt: toDate(data.createdAt)!,
+    updatedAt: toDate(data.updatedAt)!,
+  }
+}
+
 export async function createStore(data: Omit<Store, "id" | "createdAt" | "updatedAt">): Promise<string> {
   const now = new Date()
-  const docRef = await getAdminDb().collection("stores").add({
-    ...data,
-    createdAt: now,
-    updatedAt: now,
-  })
+  const docRef = await getAdminDb()
+    .collection("stores")
+    .add(stripUndefined({ ...data, createdAt: now, updatedAt: now }))
   return docRef.id
 }
 
@@ -150,10 +171,7 @@ export async function updateStore(storeId: string, data: Partial<Store>): Promis
   await getAdminDb()
     .collection("stores")
     .doc(storeId)
-    .update({
-      ...data,
-      updatedAt: new Date(),
-    })
+    .update(stripUndefined({ ...data, updatedAt: new Date() }))
 }
 
 // Suppliers
@@ -210,11 +228,9 @@ export async function getSupplierById(supplierId: string, tenantId: string): Pro
 
 export async function createSupplier(data: Omit<Supplier, "id" | "createdAt" | "updatedAt">): Promise<string> {
   const now = new Date()
-  const docRef = await getAdminDb().collection("suppliers").add({
-    ...data,
-    createdAt: now,
-    updatedAt: now,
-  })
+  const docRef = await getAdminDb()
+    .collection("suppliers")
+    .add(stripUndefined({ ...data, createdAt: now, updatedAt: now }))
   return docRef.id
 }
 
@@ -222,10 +238,7 @@ export async function updateSupplier(supplierId: string, data: Partial<Supplier>
   await getAdminDb()
     .collection("suppliers")
     .doc(supplierId)
-    .update({
-      ...data,
-      updatedAt: new Date(),
-    })
+    .update(stripUndefined({ ...data, updatedAt: new Date() }))
 }
 
 // Tenant Settings
@@ -280,10 +293,7 @@ export async function updateTenantSettings(tenantId: string, data: Partial<Tenan
   await getAdminDb()
     .collection("tenants")
     .doc(tenantId)
-    .update({
-      ...data,
-      updatedAt: new Date(),
-    })
+    .update(stripUndefined({ ...data, updatedAt: new Date() }))
 }
 
 // Audit

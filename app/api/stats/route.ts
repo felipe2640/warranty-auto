@@ -3,6 +3,7 @@ import { getServerSession } from "@/lib/session"
 import { getAdminDb } from "@/lib/firebase/admin"
 import type { Ticket, Status } from "@/lib/schemas"
 import type { FirebaseFirestore } from "firebase-admin/firestore"
+import { DEFAULT_TIMEZONE, todayDateOnly } from "@/lib/date"
 
 export async function GET() {
   try {
@@ -31,6 +32,7 @@ export async function GET() {
     }
 
     const now = new Date()
+    const today = todayDateOnly(DEFAULT_TIMEZONE)
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
@@ -46,7 +48,7 @@ export async function GET() {
         stats.pendingAction++
 
         // Check SLA breach
-        if (ticket.dueDate && new Date(ticket.dueDate) < now) stats.overSla++
+        if (ticket.dueDate && ticket.dueDate < today) stats.overSla++
       }
 
       // Time-based stats

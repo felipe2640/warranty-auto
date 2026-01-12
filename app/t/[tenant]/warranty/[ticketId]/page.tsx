@@ -45,6 +45,8 @@ export default async function TicketDetailPage({ params }: TicketDetailPageProps
         attachments={detail.attachments}
         audit={detail.audit}
         suppliers={detail.suppliers}
+        stores={detail.stores}
+        tenantPolicies={detail.tenantSettings?.policies}
         userRole={session.role}
         userId={session.uid}
         userName={session.name}

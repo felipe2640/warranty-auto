@@ -9,6 +9,7 @@ import type { TimelineEntry, TimelineType } from "@/lib/schemas"
 import { TimelineTypeEnum } from "@/lib/schemas"
 import { Plus, Phone, Mail, FileText, Clock, ArrowRight, Calendar } from "lucide-react"
 import { useState } from "react"
+import { formatDateOnly } from "@/lib/date"
 
 interface TicketTimelineTabProps {
   timeline: TimelineEntry[]
@@ -111,7 +112,7 @@ export function TicketTimelineTab({ timeline, canAddEntry, onAddEntry }: TicketT
 
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>por {entry.userName}</span>
-                {entry.nextActionAt && <span>Próxima ação: {formatDateTime(entry.nextActionAt)}</span>}
+                {entry.nextActionAt && <span>Próxima ação: {formatDateOnly(entry.nextActionAt)}</span>}
               </div>
             </div>
           ))}

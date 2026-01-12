@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getSession } from "@/lib/session"
 import { addTicketTimelineEntry } from "@/lib/services/warrantyService"
 import { getUserPermissions } from "@/lib/permissions"
+import { TimelineFormSchema, TimelineNextActionRequiredTypes } from "@/lib/schemas"
+import { isDateOnlyString, toDateOnlyString } from "@/lib/date"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,18 +14,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { id } = await params
     const body = await request.json()
-    const { type, text, setNextAction, nextActionAt, nextActionNote } = body
+    const parsed = TimelineFormSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors[0]?.message || "Dados inválidos" }, { status: 400 })
+    }
+
+    const { type, text, setNextAction, nextActionAt, nextActionNote } = parsed.data
 
     const permissions = getUserPermissions(session.role)
+    const requiresNextAction = TimelineNextActionRequiredTypes.includes(type as (typeof TimelineNextActionRequiredTypes)[number])
+    const shouldSetNextAction = requiresNextAction || setNextAction
 
     if (!permissions.canAddTimeline) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 })
     }
 
     // Check permission for setting next action
-    if (setNextAction && !permissions.canSetNextAction) {
+    if (shouldSetNextAction && !permissions.canSetNextAction) {
       return NextResponse.json({ error: "Permission denied to set next action" }, { status: 403 })
     }
+
+    const nextActionDate = shouldSetNextAction && nextActionAt ? toDateOnlyString(nextActionAt) : undefined
+    if (shouldSetNextAction && (!nextActionDate || !isDateOnlyString(nextActionDate))) {
+      return NextResponse.json({ error: "Data da próxima ação é inválida" }, { status: 400 })
+    }
+
+    const trimmedNote = nextActionNote?.trim()
 
     const entryId = await addTicketTimelineEntry({
       ticketId: id,
@@ -33,14 +50,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         text,
         userId: session.uid,
         userName: session.name,
-        nextActionAt: setNextAction && nextActionAt ? new Date(nextActionAt) : undefined,
-        nextActionNote: setNextAction ? nextActionNote : undefined,
+        nextActionAt: nextActionDate,
+        nextActionNote: shouldSetNextAction ? trimmedNote : undefined,
       },
-      updateNextAction: setNextAction && nextActionAt
+      updateNextAction: shouldSetNextAction && nextActionDate
         ? {
-            nextActionAt: new Date(nextActionAt),
-            nextActionNote,
-          }
+          nextActionAt: nextActionDate,
+          nextActionNote: trimmedNote,
+        }
         : undefined,
     })
 

@@ -11,6 +11,7 @@ import {
   getSupplierById,
   updateTenantSettings,
 } from "@/lib/repositories/admin"
+import { listTickets } from "@/lib/repositories/tickets"
 import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin"
 import type { TenantSettings, Store, Supplier, User } from "@/lib/schemas"
 import { driveClient } from "@/lib/drive/client"
@@ -283,44 +284,79 @@ export async function fetchAdminAuditEntries(options: {
       throw error
     }
 
-    let query = getAdminDb().collectionGroup("audit").where("tenantId", "==", options.tenantId)
+    return fetchAdminAuditEntriesWithoutIndex(options)
+  }
+}
 
-    if (options.ticketId) {
-      query = query.where("ticketId", "==", options.ticketId)
+async function fetchAdminAuditEntriesWithoutIndex(options: {
+  tenantId: string
+  startDate?: string | null
+  endDate?: string | null
+  ticketId?: string | null
+  action?: string | null
+  userId?: string | null
+}) {
+  const normalizeDate = (value: unknown) => {
+    if (!value) return null
+    if (value instanceof Date) return value
+    return new Date(value as string)
+  }
+
+  let ticketIds: string[] = []
+
+  if (options.ticketId) {
+    const ticketDoc = await getAdminDb().collection("tickets").doc(options.ticketId).get()
+    if (!ticketDoc.exists || ticketDoc.data()?.tenantId !== options.tenantId) {
+      return []
     }
+    ticketIds = [ticketDoc.id]
+  } else {
+    const ticketResult = await listTickets({ tenantId: options.tenantId, limit: 50 })
+    ticketIds = ticketResult.tickets.map((ticket) => ticket.id)
+  }
+
+  const entries: Array<Record<string, unknown>> = []
+
+  for (const ticketId of ticketIds) {
+    let auditQuery = getAdminDb().collection("tickets").doc(ticketId).collection("audit")
 
     if (options.action && options.action !== "all") {
-      query = query.where("action", "==", options.action)
+      auditQuery = auditQuery.where("action", "==", options.action)
     }
 
     if (options.userId) {
-      query = query.where("userId", "==", options.userId)
+      auditQuery = auditQuery.where("userId", "==", options.userId)
     }
 
-    const snapshot = await query.limit(200).get()
-
-    let entries = snapshot.docs.map((doc) => {
+    const snapshot = await auditQuery.get()
+    snapshot.docs.forEach((doc) => {
       const data = doc.data()
-      return {
+      entries.push({
         id: doc.id,
         ...data,
         createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt),
-      }
+      })
     })
-
-    if (options.startDate) {
-      const start = new Date(options.startDate)
-      entries = entries.filter((e) => new Date(e.createdAt) >= start)
-    }
-
-    if (options.endDate) {
-      const end = new Date(options.endDate)
-      end.setHours(23, 59, 59, 999)
-      entries = entries.filter((e) => new Date(e.createdAt) <= end)
-    }
-
-    entries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
-    return entries.slice(0, 100)
   }
+
+  let filtered = entries
+
+  if (options.startDate) {
+    const start = normalizeDate(options.startDate)
+    if (start) {
+      filtered = filtered.filter((e) => new Date(e.createdAt as string | Date) >= start)
+    }
+  }
+
+  if (options.endDate) {
+    const end = normalizeDate(options.endDate)
+    if (end) {
+      end.setHours(23, 59, 59, 999)
+      filtered = filtered.filter((e) => new Date(e.createdAt as string | Date) <= end)
+    }
+  }
+
+  filtered.sort((a, b) => new Date(b.createdAt as string | Date).getTime() - new Date(a.createdAt as string | Date).getTime())
+
+  return filtered.slice(0, 100)
 }

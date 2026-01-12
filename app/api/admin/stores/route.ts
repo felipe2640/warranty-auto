@@ -27,9 +27,22 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
+    const normalizeOptionalString = (value: unknown) => {
+      if (typeof value !== "string") return undefined
+      const trimmed = value.trim()
+      return trimmed ? trimmed : undefined
+    }
+
+    const name = typeof body.name === "string" ? body.name.trim() : body.name
+    const code = normalizeOptionalString(body.code) || name
+
     const validation = storeSchema.omit({ id: true, createdAt: true, updatedAt: true }).safeParse({
       ...body,
-      code: body.code || body.name,
+      name,
+      code,
+      cnpj: normalizeOptionalString(body.cnpj),
+      address: normalizeOptionalString(body.address),
+      phone: normalizeOptionalString(body.phone),
       tenantId: session.tenantId,
     })
 

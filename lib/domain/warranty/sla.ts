@@ -1,9 +1,10 @@
-export function computeDueDate(deliveredAt: Date, slaDays: number) {
-  const dueDate = new Date(deliveredAt)
-  dueDate.setDate(dueDate.getDate() + slaDays)
-  return dueDate
+import { addDaysDateOnly, toDateOnlyString } from "@/lib/date"
+
+export function computeDueDate(deliveredAt: Date | string, slaDays: number) {
+  const base = toDateOnlyString(deliveredAt)
+  return addDaysDateOnly(base, slaDays)
 }
 
-export function computeIsOverdue(dueDate: Date, now: Date) {
-  return dueDate < now
+export function computeIsOverdue(dueDate: string, today: string) {
+  return dueDate < today
 }

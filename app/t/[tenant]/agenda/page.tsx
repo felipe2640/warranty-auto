@@ -55,6 +55,7 @@ export default async function AgendaPage({
     <AgendaClient
       grouped={grouped}
       suppliers={suppliers}
+      stores={stores}
       tenant={tenant}
       userName={session.name}
       userRole={session.role}

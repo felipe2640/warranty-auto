@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { AppLayout } from "@/components/app-layout"
-import { Calendar, AlertTriangle, Inbox, FileSearch, Truck, Phone, CheckCircle, Plus, ArrowRight } from "lucide-react"
+import { AlertTriangle, Inbox, FileSearch, Truck, Phone, CheckCircle, Plus, ArrowRight } from "lucide-react"
 import type { Ticket, Status, Store, Role } from "@/lib/schemas"
+import { ACTION_KIND_META } from "@/lib/ui/actionKinds"
+import { diffDaysDateOnly, formatDateOnly, todayDateOnly } from "@/lib/date"
 
 interface DashboardStats {
   total: number
@@ -30,23 +32,25 @@ interface DashboardClientProps {
 
 export function DashboardClient({ stats, stores, tenant, userName, userRole, userStoreId }: DashboardClientProps) {
   const [selectedStoreId, setSelectedStoreId] = useState<string>(userStoreId || "all")
+  const TodayIcon = ACTION_KIND_META.TODAY.icon
+  const OverdueIcon = ACTION_KIND_META.OVERDUE.icon
 
   const handleStoreChange = (storeId: string) => {
     setSelectedStoreId(storeId)
     // In a real app, you'd refetch data with the new store filter
   }
 
-  const formatDate = (date?: Date | string) => {
+  const formatDate = (date?: string) => {
     if (!date) return "—"
-    const d = new Date(date)
-    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+    const formatted = formatDateOnly(date)
+    if (formatted === "—") return "—"
+    const [day, month] = formatted.split("/")
+    return `${day}/${month}`
   }
 
-  const getDaysOverdue = (date?: Date | string) => {
+  const getDaysOverdue = (date?: string) => {
     if (!date) return 0
-    const d = new Date(date)
-    const now = new Date()
-    const diff = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
+    const diff = diffDaysDateOnly(date, todayDateOnly())
     return Math.max(0, diff)
   }
 
@@ -78,7 +82,7 @@ export function DashboardClient({ stats, stores, tenant, userName, userRole, use
               <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
                 <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                   <CardTitle className="text-xs font-medium text-muted-foreground">Ações de Hoje</CardTitle>
-                  <Calendar className="h-4 w-4 text-blue-600" />
+                  <TodayIcon className={`h-4 w-4 ${ACTION_KIND_META.TODAY.iconClass}`} />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.todayActions}</div>
@@ -93,8 +97,8 @@ export function DashboardClient({ stats, stores, tenant, userName, userRole, use
               >
                 <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                   <CardTitle className="text-xs font-medium text-muted-foreground">Atrasadas</CardTitle>
-                  <AlertTriangle
-                    className={`h-4 w-4 ${stats.overdue > 0 ? "text-destructive" : "text-muted-foreground"}`}
+                  <OverdueIcon
+                    className={`h-4 w-4 ${stats.overdue > 0 ? ACTION_KIND_META.OVERDUE.iconClass : "text-muted-foreground"}`}
                   />
                 </CardHeader>
                 <CardContent>

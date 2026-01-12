@@ -28,6 +28,7 @@ const RESOLUTION_OPTIONS = [
   { value: "TROCA", label: "Troca" },
   { value: "NEGOU", label: "Negou" },
 ]
+const NOTE_MAX_LENGTH = 500
 
 export function AdvanceStageDialog({
   open,
@@ -45,6 +46,7 @@ export function AdvanceStageDialog({
   const [resolutionResult, setResolutionResult] = useState<string>("")
   const [resolutionNotes, setResolutionNotes] = useState<string>("")
   const [supplierResponse, setSupplierResponse] = useState<string>("")
+  const [note, setNote] = useState<string>("")
   const supplierResponseRef = useRef<HTMLTextAreaElement>(null)
   const resolutionRef = useRef<HTMLButtonElement>(null)
 
@@ -71,6 +73,12 @@ export function AdvanceStageDialog({
     try {
       const body: Record<string, unknown> = { action: "advance" }
 
+      if (note.trim().length > NOTE_MAX_LENGTH) {
+        setError(`Observação deve ter no máximo ${NOTE_MAX_LENGTH} caracteres`)
+        setIsSubmitting(false)
+        return
+      }
+
       if (needsSupplier && supplierId) {
         body.supplierId = supplierId
       }
@@ -92,6 +100,10 @@ export function AdvanceStageDialog({
           return
         }
         body.supplierResponse = supplierResponse
+      }
+
+      if (note.trim()) {
+        body.note = note.trim()
       }
 
       const response = await fetch(`/api/tickets/${ticket.id}/status`, {
@@ -122,6 +134,7 @@ export function AdvanceStageDialog({
     setResolutionResult("")
     setResolutionNotes("")
     setSupplierResponse("")
+    setNote("")
   }
 
   const handleChecklistCta = (item: TransitionChecklistItem) => {
@@ -269,6 +282,22 @@ export function AdvanceStageDialog({
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Observação (vai para a timeline)</Label>
+              <span className="text-xs text-muted-foreground">
+                {note.length}/{NOTE_MAX_LENGTH}
+              </span>
+            </div>
+            <Textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Opcional"
+              rows={3}
+              maxLength={NOTE_MAX_LENGTH}
+            />
           </div>
         </div>
 

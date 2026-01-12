@@ -1,8 +1,9 @@
 import { computeDueDate } from "@/lib/domain/warranty/sla"
 import { validateTransition } from "@/lib/domain/warranty/statusMachine"
-import { getSupplierById, getTenantSettings, listStores, listSuppliers } from "@/lib/repositories/admin"
+import { getStoreById, getSupplierById, getTenantSettings, listStores, listSuppliers } from "@/lib/repositories/admin"
 import {
   addAttachment,
+  addTicketAuditEntry,
   addTimelineEntry,
   createTicket,
   getDashboardCounts,
@@ -13,22 +14,69 @@ import {
   hasAttachmentOfCategory,
   listTickets,
   listTicketsByNextActionRange,
+  updateTicketEditableFields,
   updateTicketStatus,
   revertTicketStatus,
 } from "@/lib/repositories/tickets"
+import { buildSearchTokens } from "@/lib/search"
+import { DEFAULT_TIMEZONE, addDaysDateOnly, toDateOnlyString, todayDateOnly } from "@/lib/date"
 import type { Role } from "@/lib/roles"
 import {
   AttachmentCategoryEnum,
   CreateTicketInputSchema,
   ResolutionResultEnum,
+  UpdateTicketDetailsSchema,
   normalizeCell,
   normalizeCpfCnpj,
+  type UpdateTicketDetailsInput,
   type Attachment,
   type Status,
   type Ticket,
   type TimelineEntry,
 } from "@/lib/schemas"
 import type { NextTransitionChecklist, StageSummary, TransitionChecklistItem } from "@/lib/types/warranty"
+import { diffEditableFields } from "@/lib/domain/warranty/diff"
+
+const AGENDA_STATUSES: Status[] = ["COBRANCA_ACOMPANHAMENTO", "ENTREGA_LOGISTICA", "RESOLUCAO"]
+const MAX_CALENDAR_TICKETS = 500
+
+const CUSTOMER_FIELDS = [
+  "nomeRazaoSocial",
+  "nomeFantasiaApelido",
+  "cpfCnpj",
+  "celular",
+  "isWhatsapp",
+] as const
+const PART_FIELDS = [
+  "descricaoPeca",
+  "quantidade",
+  "ref",
+  "codigo",
+  "defeitoPeca",
+  "numeroVendaOuCfe",
+  "numeroVendaOuCfeFornecedor",
+  "obs",
+] as const
+const STORE_FIELDS = ["storeId"] as const
+const SUPPLIER_FIELDS = ["supplierId"] as const
+
+const EDIT_FIELD_LABELS: Record<string, string> = {
+  nomeRazaoSocial: "Nome/Razão Social",
+  nomeFantasiaApelido: "Nome Fantasia/Apelido",
+  cpfCnpj: "CPF/CNPJ",
+  celular: "Celular",
+  isWhatsapp: "WhatsApp",
+  descricaoPeca: "Descrição da peça",
+  quantidade: "Quantidade",
+  ref: "Referência",
+  codigo: "Código",
+  defeitoPeca: "Defeito",
+  numeroVendaOuCfe: "Número da venda/CFe",
+  numeroVendaOuCfeFornecedor: "Número fornecedor",
+  obs: "Observações",
+  storeId: "Loja",
+  supplierId: "Fornecedor",
+}
 
 function buildTransitionChecklist(options: {
   ticket: Ticket
@@ -160,6 +208,35 @@ function buildStageSummaryMap(
   return summaryMap
 }
 
+function getAllowedEditFields(role: Role, allowStoreChange: boolean) {
+  const fields = new Set<string>()
+
+  if (role === "ADMIN") {
+    CUSTOMER_FIELDS.forEach((field) => fields.add(field))
+    PART_FIELDS.forEach((field) => fields.add(field))
+    STORE_FIELDS.forEach((field) => fields.add(field))
+    SUPPLIER_FIELDS.forEach((field) => fields.add(field))
+    return fields
+  }
+
+  if (role === "INTERNO") {
+    PART_FIELDS.forEach((field) => fields.add(field))
+    SUPPLIER_FIELDS.forEach((field) => fields.add(field))
+    if (allowStoreChange) {
+      STORE_FIELDS.forEach((field) => fields.add(field))
+    }
+    return fields
+  }
+
+  if (role === "RECEBEDOR") {
+    CUSTOMER_FIELDS.forEach((field) => fields.add(field))
+    PART_FIELDS.forEach((field) => fields.add(field))
+    return fields
+  }
+
+  return fields
+}
+
 export async function fetchDashboardData(options: { tenantId: string; storeId?: string }) {
   const counts = await getDashboardCounts(options.tenantId, options.storeId)
 
@@ -220,10 +297,10 @@ export async function createTicketWithUploads(options: {
     defeitoPeca: options.formData.get("defeitoPeca") as string,
     numeroVendaOuCfe: options.formData.get("numeroVendaOuCfe") as string,
     numeroVendaOuCfeFornecedor: (options.formData.get("numeroVendaOuCfeFornecedor") as string) || undefined,
-    dataVenda: new Date(options.formData.get("dataVenda") as string),
-    dataRecebendoPeca: new Date(options.formData.get("dataRecebendoPeca") as string),
+    dataVenda: toDateOnlyString(options.formData.get("dataVenda") as string),
+    dataRecebendoPeca: toDateOnlyString(options.formData.get("dataRecebendoPeca") as string),
     dataIndoFornecedor: options.formData.get("dataIndoFornecedor")
-      ? new Date(options.formData.get("dataIndoFornecedor") as string)
+      ? toDateOnlyString(options.formData.get("dataIndoFornecedor") as string)
       : undefined,
     obs: (options.formData.get("obs") as string) || undefined,
     createdBy: options.session.uid,
@@ -297,13 +374,14 @@ export async function fetchTicketDetail(options: {
     return null
   }
 
-  const [timeline, attachments, stores, suppliers, audit, hasCanhoto] = await Promise.all([
+  const [timeline, attachments, stores, suppliers, audit, hasCanhoto, tenantSettings] = await Promise.all([
     getTicketTimeline(options.ticketId),
     getTicketAttachments(options.ticketId),
     listStores(options.tenantId),
     listSuppliers(options.tenantId),
     options.canSeeAudit ? getTicketAudit(options.ticketId) : Promise.resolve([]),
     hasAttachmentOfCategory(options.ticketId, "CANHOTO"),
+    getTenantSettings(options.tenantId),
   ])
 
   const store = stores.find((s) => s.id === ticket.storeId)
@@ -328,8 +406,164 @@ export async function fetchTicketDetail(options: {
     audit,
     suppliers: suppliers.filter((s) => s.active),
     stores,
+    tenantSettings,
     nextTransitionChecklist,
     stageSummaryMap,
+  }
+}
+
+export async function updateTicketDetails(options: {
+  tenantId: string
+  ticketId: string
+  userId: string
+  userName: string
+  userEmail?: string
+  role: Role
+  userStoreId?: string | null
+  payload: unknown
+}) {
+  const ticket = await getTicketById(options.ticketId)
+  if (!ticket) {
+    return { error: { message: "Ticket not found" }, status: 404 }
+  }
+
+  if (ticket.tenantId !== options.tenantId) {
+    return { error: { message: "Access denied" }, status: 403 }
+  }
+
+  const validation = UpdateTicketDetailsSchema.safeParse(options.payload)
+  if (!validation.success) {
+    return { error: { message: validation.error.errors[0].message }, status: 400 }
+  }
+
+  const tenantSettings = await getTenantSettings(options.tenantId)
+  const onlyOwnStorePolicy = tenantSettings?.policies.recebedorOnlyOwnStore ?? false
+
+  if (onlyOwnStorePolicy && options.role === "RECEBEDOR" && options.userStoreId && ticket.storeId !== options.userStoreId) {
+    return { error: { message: "Permission denied" }, status: 403 }
+  }
+
+  const allowStoreChange = !onlyOwnStorePolicy
+  const allowedFields = getAllowedEditFields(options.role, allowStoreChange)
+
+  if (allowedFields.size === 0) {
+    return { error: { message: "Permission denied" }, status: 403 }
+  }
+
+  const normalizedPatch = Object.fromEntries(
+    Object.entries(validation.data).map(([key, value]) => {
+      if (typeof value === "string") {
+        return [key, value.trim()]
+      }
+      return [key, value]
+    }),
+  ) as Record<string, unknown>
+
+  const filteredPatch = Object.fromEntries(
+    Object.entries(normalizedPatch).filter(([key, value]) => allowedFields.has(key) && value !== undefined),
+  ) as UpdateTicketDetailsInput
+
+  const changedFields = diffEditableFields(ticket, filteredPatch)
+  if (Object.keys(changedFields).length === 0) {
+    return { status: 200, ticket: { ...ticket } }
+  }
+
+  let storeName: string | undefined
+  if (filteredPatch.storeId) {
+    const store = await getStoreById(filteredPatch.storeId as string, options.tenantId)
+    if (!store) {
+      return { error: { message: "Loja inválida" }, status: 400 }
+    }
+    storeName = store.name
+  }
+
+  let supplierName = ticket.supplierName
+  if (filteredPatch.supplierId) {
+    const supplier = await getSupplierById(filteredPatch.supplierId as string, options.tenantId)
+    if (!supplier) {
+      return { error: { message: "Fornecedor inválido" }, status: 400 }
+    }
+    supplierName = supplier.name
+  }
+
+  const updatePatch: Partial<Ticket> = {}
+  Object.keys(changedFields).forEach((field) => {
+    updatePatch[field as keyof Ticket] = filteredPatch[field] as never
+  })
+
+  if (updatePatch.supplierId && supplierName) {
+    updatePatch.supplierName = supplierName
+  }
+
+  const searchFieldsChanged = ["nomeRazaoSocial", "cpfCnpj", "celular", "numeroVendaOuCfe", "codigo", "ref"].some(
+    (field) => field in updatePatch,
+  )
+
+  if (searchFieldsChanged) {
+    const mergedTicket = { ...ticket, ...updatePatch }
+    updatePatch.searchTokens = buildSearchTokens({
+      nomeRazaoSocial: mergedTicket.nomeRazaoSocial,
+      cpfCnpj: mergedTicket.cpfCnpj,
+      celular: mergedTicket.celular,
+      numeroVendaOuCfe: mergedTicket.numeroVendaOuCfe,
+      codigo: mergedTicket.codigo,
+      ref: mergedTicket.ref,
+    })
+  }
+
+  const updatedTicket = await updateTicketEditableFields(options.ticketId, options.tenantId, updatePatch)
+  if (!updatedTicket) {
+    return { error: { message: "Ticket not found" }, status: 404 }
+  }
+
+  const now = new Date()
+  await addTicketAuditEntry(options.ticketId, {
+    ticketId: options.ticketId,
+    action: "TICKET_EDIT",
+    userId: options.userId,
+    userName: options.userName,
+    tenantId: options.tenantId,
+    metadata: {
+      changedFields,
+      role: options.role,
+      userEmail: options.userEmail,
+    },
+    createdAt: now,
+  })
+
+  const changedLabels = Object.keys(changedFields)
+    .map((field) => EDIT_FIELD_LABELS[field] || field)
+    .join(", ")
+
+  let timelineEntry: TimelineEntry | undefined
+  if (changedLabels) {
+    const text = `Dados do ticket atualizados: ${changedLabels}`
+    const entryId = await addTimelineEntry(options.ticketId, {
+      type: "DOCUMENTO",
+      text,
+      userId: options.userId,
+      userName: options.userName,
+    })
+    timelineEntry = {
+      id: entryId,
+      ticketId: options.ticketId,
+      type: "DOCUMENTO",
+      text,
+      userId: options.userId,
+      userName: options.userName,
+      createdAt: now,
+    }
+  }
+
+  return {
+    status: 200,
+    ticket: {
+      ...updatedTicket,
+      ...(storeName ? { storeName } : {}),
+      ...(supplierName ? { supplierName } : {}),
+    },
+    timelineEntry,
+    changedFields,
   }
 }
 
@@ -363,17 +597,17 @@ export async function fetchAgendaTickets(options: {
   limit?: number
   cursor?: string
 }) {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000)
-  const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+  const today = todayDateOnly(DEFAULT_TIMEZONE)
+  const tomorrow = addDaysDateOnly(today, 1)
+  const nextWeek = addDaysDateOnly(today, 7)
+  const yesterday = addDaysDateOnly(today, -1)
 
   if (options.tab === "hoje") {
     return listTicketsByNextActionRange({
       tenantId: options.tenantId,
-      statuses: ["COBRANCA_ACOMPANHAMENTO", "ENTREGA_LOGISTICA", "RESOLUCAO"],
+      statuses: AGENDA_STATUSES,
       start: today,
-      end: tomorrow,
+      end: today,
       limit: options.limit,
       startAfter: options.cursor,
     })
@@ -382,7 +616,7 @@ export async function fetchAgendaTickets(options: {
   if (options.tab === "proximos") {
     return listTicketsByNextActionRange({
       tenantId: options.tenantId,
-      statuses: ["COBRANCA_ACOMPANHAMENTO", "ENTREGA_LOGISTICA", "RESOLUCAO"],
+      statuses: AGENDA_STATUSES,
       start: tomorrow,
       end: nextWeek,
       limit: options.limit,
@@ -392,9 +626,85 @@ export async function fetchAgendaTickets(options: {
 
   return listTicketsByNextActionRange({
     tenantId: options.tenantId,
-    statuses: ["COBRANCA_ACOMPANHAMENTO", "ENTREGA_LOGISTICA", "RESOLUCAO"],
-    start: new Date(0),
-    end: today,
+    statuses: AGENDA_STATUSES,
+    start: "0000-01-01",
+    end: yesterday,
+    limit: options.limit,
+    startAfter: options.cursor,
+  })
+}
+
+export async function fetchAgendaCalendar(options: {
+  tenantId: string
+  month: number
+  year: number
+}) {
+  const firstDay = new Date(options.year, options.month - 1, 1)
+  const lastDay = new Date(options.year, options.month, 0)
+
+  const start = new Date(firstDay)
+  start.setDate(firstDay.getDate() - firstDay.getDay())
+  const startDateOnly = toDateOnlyString(start)
+
+  const end = new Date(lastDay)
+  end.setDate(lastDay.getDate() + (6 - lastDay.getDay()))
+  const endDateOnly = toDateOnlyString(end)
+
+  const { tickets, nextCursor } = await listTicketsByNextActionRange({
+    tenantId: options.tenantId,
+    statuses: AGENDA_STATUSES,
+    start: startDateOnly,
+    end: endDateOnly,
+    limit: MAX_CALENDAR_TICKETS,
+  })
+
+  const today = todayDateOnly(DEFAULT_TIMEZONE)
+  const tomorrow = addDaysDateOnly(today, 1)
+  const next7 = addDaysDateOnly(today, 7)
+
+  const days: Record<string, { TODAY: number; OVERDUE: number; NEXT_7_DAYS: number; total: number }> = {}
+
+  tickets.forEach((ticket) => {
+    if (!ticket.nextActionAt) return
+    const ticketDate = ticket.nextActionAt
+    const key = ticketDate
+    const dayBucket = days[key] || { TODAY: 0, OVERDUE: 0, NEXT_7_DAYS: 0, total: 0 }
+    dayBucket.total += 1
+
+    if (ticketDate < today) {
+      dayBucket.OVERDUE += 1
+    } else if (ticketDate === today) {
+      dayBucket.TODAY += 1
+    } else if (ticketDate >= tomorrow && ticketDate <= next7) {
+      dayBucket.NEXT_7_DAYS += 1
+    }
+
+    days[key] = dayBucket
+  })
+
+  return {
+    days,
+    range: { start: startDateOnly, end: endDateOnly },
+    truncated: Boolean(nextCursor),
+  }
+}
+
+export async function fetchAgendaDay(options: {
+  tenantId: string
+  date: string
+  limit?: number
+  cursor?: string
+}) {
+  const dateOnly = toDateOnlyString(options.date)
+  if (!dateOnly) {
+    return { tickets: [], nextCursor: undefined }
+  }
+
+  return listTicketsByNextActionRange({
+    tenantId: options.tenantId,
+    statuses: AGENDA_STATUSES,
+    start: dateOnly,
+    end: dateOnly,
     limit: options.limit,
     startAfter: options.cursor,
   })
@@ -406,6 +716,8 @@ export async function advanceTicketStatus(options: {
   role: Role
   userId: string
   userName: string
+  nextStatus?: Status
+  note?: string
   supplierId?: string
   resolutionResult?: string
   resolutionNotes?: string
@@ -476,7 +788,21 @@ export async function advanceTicketStatus(options: {
     return { error: { message: "Cannot advance from this status" }, status: 400 }
   }
 
+  if (options.nextStatus && options.nextStatus !== nextStatus) {
+    return { error: { message: "Status alvo inválido" }, status: 400 }
+  }
+
   await updateTicketStatus(options.ticketId, nextStatus, options.userId, options.userName, additionalData)
+
+  const note = options.note?.trim()
+  if (note) {
+    await addTimelineEntry(options.ticketId, {
+      type: "OBS",
+      text: note,
+      userId: options.userId,
+      userName: options.userName,
+    })
+  }
 
   return { status: 200, nextStatus }
 }
@@ -512,7 +838,7 @@ export async function addTicketTimelineEntry(options: {
   ticketId: string
   tenantId: string
   entry: Omit<TimelineEntry, "id" | "ticketId" | "createdAt">
-  updateNextAction?: { nextActionAt: Date; nextActionNote?: string }
+  updateNextAction?: { nextActionAt: string; nextActionNote?: string }
 }) {
   const ticket = await getTicketById(options.ticketId)
   if (!ticket || ticket.tenantId !== options.tenantId) {
@@ -525,6 +851,7 @@ export async function addTicketTimelineEntry(options: {
 export async function addTicketAttachment(options: {
   ticketId: string
   tenantId: string
+  ticket?: Ticket
   file: Buffer
   metadata: {
     name: string
@@ -534,13 +861,14 @@ export async function addTicketAttachment(options: {
     uploadedBy: string
     uploadedByName: string
   }
-}) {
-  const ticket = await getTicketById(options.ticketId)
+}): Promise<{ attachmentId: string; ticket: Ticket } | null> {
+  const ticket = options.ticket ?? (await getTicketById(options.ticketId))
   if (!ticket || ticket.tenantId !== options.tenantId) {
     return null
   }
 
-  return addAttachment(options.ticketId, options.file, options.metadata)
+  const attachmentId = await addAttachment(options.ticketId, options.file, options.metadata)
+  return { attachmentId, ticket }
 }
 
 export async function fetchTicketAttachments(options: {

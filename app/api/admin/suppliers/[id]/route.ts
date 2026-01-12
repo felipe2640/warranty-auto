@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/session"
 import { ADMIN_ROLE } from "@/lib/roles"
 import { updateAdminSupplier } from "@/lib/services/adminService"
+import { onlyDigits } from "@/lib/format"
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,9 +19,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       supplierId: id,
       updates: {
         name: body.name,
-        cnpj: body.cnpj,
+        cnpj: typeof body.cnpj === "string" ? onlyDigits(body.cnpj).slice(0, 14) : body.cnpj,
         email: body.email,
-        phone: body.phone,
+        phone: typeof body.phone === "string" ? onlyDigits(body.phone).slice(0, 11) : body.phone,
         slaDays: body.slaDays,
         active: body.active,
         updatedAt: new Date(),

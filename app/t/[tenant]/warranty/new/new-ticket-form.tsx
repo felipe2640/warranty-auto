@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { useForm } from "react-hook-form"
+import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CreateTicketFormSchema, type CreateTicketFormData } from "@/lib/schemas"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,8 @@ import { SignaturePad } from "@/components/warranty/signature-pad"
 import { FileUploadSection } from "./file-upload-section"
 import { Loader2, AlertCircle, Check } from "lucide-react"
 import type { Store } from "@/lib/schemas"
+import { compressImageFile } from "@/lib/client/imageCompression"
+import { formatCpfCnpj, formatPhoneBR, onlyDigits } from "@/lib/format"
 
 interface NewTicketFormProps {
   tenant: string
@@ -27,6 +29,7 @@ interface NewTicketFormProps {
 export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isOptimizing, setIsOptimizing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
   const [signatureSaved, setSignatureSaved] = useState(false)
@@ -35,6 +38,7 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
   const {
     register,
     handleSubmit,
+    control,
     setValue,
     watch,
     formState: { errors },
@@ -67,6 +71,22 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
     try {
       const formData = new FormData()
 
+      let optimizedFiles = files
+      if (files.some((item) => item.file.type.startsWith("image/"))) {
+        setIsOptimizing(true)
+        try {
+          optimizedFiles = await Promise.all(
+            files.map(async (item) => ({
+              ...item,
+              file: item.file.type.startsWith("image/") ? await compressImageFile(item.file) : item.file,
+            })),
+          )
+          setFiles(optimizedFiles)
+        } finally {
+          setIsOptimizing(false)
+        }
+      }
+
       // Add all form fields
       formData.append("tenantSlug", tenant)
       Object.entries(data).forEach(([key, value]) => {
@@ -79,7 +99,7 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
       formData.append("signatureDataUrl", signatureDataUrl)
 
       // Add file attachments
-      files.forEach(({ file, category }) => {
+      optimizedFiles.forEach(({ file, category }) => {
         formData.append("attachments", file)
         formData.append("attachmentCategories", category)
       })
@@ -125,6 +145,8 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
         </Alert>
       )}
 
+      {isOptimizing && <p className="text-xs text-muted-foreground">Otimizando imagens...</p>}
+
       <Accordion
         type="multiple"
         defaultValue={["cliente", "peca", "financeiro", "obs", "anexos"]}
@@ -154,13 +176,35 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
 
               <div className="space-y-2">
                 <Label htmlFor="cpfCnpj">CPF / CNPJ *</Label>
-                <Input id="cpfCnpj" {...register("cpfCnpj")} placeholder="000.000.000-00" />
+                <Controller
+                  control={control}
+                  name="cpfCnpj"
+                  render={({ field }) => (
+                    <Input
+                      id="cpfCnpj"
+                      value={formatCpfCnpj(field.value || "")}
+                      onChange={(e) => field.onChange(onlyDigits(e.target.value).slice(0, 14))}
+                      placeholder="000.000.000-00"
+                    />
+                  )}
+                />
                 {errors.cpfCnpj && <p className="text-sm text-destructive">{errors.cpfCnpj.message}</p>}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="celular">Celular *</Label>
-                <Input id="celular" {...register("celular")} placeholder="(00) 00000-0000" />
+                <Controller
+                  control={control}
+                  name="celular"
+                  render={({ field }) => (
+                    <Input
+                      id="celular"
+                      value={formatPhoneBR(field.value || "")}
+                      onChange={(e) => field.onChange(onlyDigits(e.target.value).slice(0, 11))}
+                      placeholder="(00) 00000-0000"
+                    />
+                  )}
+                />
                 {errors.celular && <p className="text-sm text-destructive">{errors.celular.message}</p>}
               </div>
 
@@ -352,12 +396,12 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
           type="button"
           variant="outline"
           onClick={() => router.back()}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isOptimizing}
           className="flex-1 md:flex-none"
         >
           Cancelar
         </Button>
-        <Button type="submit" disabled={isSubmitting} className="flex-1 md:flex-none">
+        <Button type="submit" disabled={isSubmitting || isOptimizing} className="flex-1 md:flex-none">
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
