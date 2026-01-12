@@ -54,6 +54,9 @@ export default async function Home({ searchParams }: { searchParams?: Promise<Se
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          <div className="mb-2 flex justify-center">
+            <img src="/insight_logo_resized.png" alt="Logo Insight" className="h-12 w-auto" />
+          </div>
           <CardTitle className="text-2xl">Entrar</CardTitle>
           <CardDescription>Informe o slug do tenant para acessar</CardDescription>
         </CardHeader>

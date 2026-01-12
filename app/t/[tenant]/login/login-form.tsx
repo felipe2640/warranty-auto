@@ -47,7 +47,7 @@ export function LoginForm({ tenant, tenantName }: LoginFormProps) {
 
       const responseData = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(responseData.error || "Failed to create session")
+        throw new Error(responseData.error || "Falha ao criar sessão")
       }
 
       router.push(`/t/${tenant}/dashboard`)

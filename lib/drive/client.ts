@@ -3,7 +3,7 @@ import { google } from "googleapis"
 function getServiceAccountCredentials() {
   const credentialsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
   if (!credentialsJson) {
-    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set")
+    throw new Error("Variavel de ambiente GOOGLE_SERVICE_ACCOUNT_JSON nao definida")
   }
 
   const trimmed = credentialsJson.trim()
@@ -14,7 +14,7 @@ function getServiceAccountCredentials() {
       const decoded = Buffer.from(trimmed, "base64").toString("utf-8")
       return JSON.parse(decoded)
     } catch {
-      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON must be JSON or base64-encoded JSON")
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON deve ser JSON ou base64 de JSON")
     }
   }
 }
@@ -91,9 +91,24 @@ export async function testDriveAccess(folderId: string): Promise<{ success: bool
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: mapDriveError(error),
     }
   }
+}
+
+function mapDriveError(error: unknown): string {
+  if (error && typeof error === "object") {
+    const err = error as { code?: number; status?: number; response?: { status?: number }; message?: string }
+    const status = err.code ?? err.status ?? err.response?.status
+    if (status === 403) {
+      return "Permissao negada no Google Drive. Verifique o compartilhamento da pasta."
+    }
+    if (status === 404) {
+      return "Pasta do Drive nao encontrada. Verifique o ID informado."
+    }
+  }
+
+  return "Erro ao acessar o Google Drive"
 }
 
 export function getServiceAccountEmail(): string {

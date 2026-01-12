@@ -20,6 +20,7 @@ interface WarrantyListClientProps {
   tickets: Ticket[]
   stores: Store[]
   tenant: string
+  tenantName?: string
   userName: string
   userRole: Role
   userStoreId?: string
@@ -39,6 +40,7 @@ export function WarrantyListClient({
   tickets,
   stores,
   tenant,
+  tenantName,
   userName,
   userRole,
   userStoreId,
@@ -110,6 +112,7 @@ export function WarrantyListClient({
   return (
     <AppLayout
       tenant={tenant}
+      tenantName={tenantName}
       userName={userName}
       userRole={userRole}
       userStoreId={userStoreId}

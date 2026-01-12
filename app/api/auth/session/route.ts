@@ -15,18 +15,18 @@ export async function POST(request: Request) {
     const { idToken, tenant } = await request.json()
 
     if (!idToken) {
-      return NextResponse.json({ error: "Missing idToken" }, { status: 400 })
+      return NextResponse.json({ error: "idToken não informado" }, { status: 400 })
     }
 
     if (!tenant || typeof tenant !== "string" || !tenant.trim()) {
-      return NextResponse.json({ error: "Missing tenant" }, { status: 400 })
+      return NextResponse.json({ error: "Tenant não informado" }, { status: 400 })
     }
 
     const tenantSlug = tenant.trim()
     const decoded = await getAdminAuth().verifyIdToken(idToken)
 
     if (!decoded.email) {
-      return NextResponse.json({ error: "Email not available in token" }, { status: 400 })
+      return NextResponse.json({ error: "Email não disponível no token" }, { status: 400 })
     }
 
     const db = getAdminDb()
@@ -102,6 +102,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Session creation error:", error)
-    return NextResponse.json({ error: "Failed to create session" }, { status: 401 })
+    return NextResponse.json({ error: "Falha ao criar sessão" }, { status: 401 })
   }
 }

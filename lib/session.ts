@@ -40,7 +40,7 @@ export async function getSession(): Promise<SessionUser | null> {
 export async function requireSession(): Promise<SessionUser> {
   const session = await getSession()
   if (!session) {
-    throw new Error("Unauthorized")
+    throw new Error("Nao autorizado")
   }
   return session
 }
@@ -52,16 +52,18 @@ export async function requireTenantSession(tenantSlug: string) {
   const tenantDoc = await getAdminDb().collection("tenants").where("slug", "==", tenantSlug).limit(1).get()
 
   if (tenantDoc.empty) {
-    throw new Error("Tenant not found")
+    throw new Error("Tenant nao encontrado")
   }
 
   const tenant = tenantDoc.docs[0]
+  const tenantData = tenant.data()
+  const tenantName = typeof tenantData?.name === "string" && tenantData.name.trim() ? tenantData.name.trim() : tenantSlug
 
   if (session.tenantId !== tenant.id) {
-    throw new Error("Access denied to this tenant")
+    throw new Error("Acesso negado a este tenant")
   }
 
-  return { session, tenantId: tenant.id, tenantSlug }
+  return { session, tenantId: tenant.id, tenantSlug, tenantName }
 }
 
 export async function requireAuth(): Promise<SessionUser> {

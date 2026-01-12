@@ -25,6 +25,7 @@ interface Breadcrumb {
 
 interface TopbarProps {
   tenant: string
+  tenantName?: string
   userName: string
   userRole: Role
   breadcrumbs?: Breadcrumb[]
@@ -39,6 +40,7 @@ interface TopbarProps {
 
 export function Topbar({
   tenant,
+  tenantName,
   userName,
   userRole,
   breadcrumbs = [],
@@ -51,6 +53,7 @@ export function Topbar({
   actions,
 }: TopbarProps) {
   const router = useRouter()
+  const tenantLabel = tenantName?.trim() || tenant
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" })
@@ -81,8 +84,8 @@ export function Topbar({
 
       {/* Breadcrumbs (Desktop) */}
       <div className="hidden md:flex items-center gap-1 text-sm">
-        <Link href={`/t/${tenant}/dashboard`} className="text-muted-foreground capitalize hover:underline">
-          {tenant}
+        <Link href={`/t/${tenant}/dashboard`} className="text-muted-foreground hover:underline">
+          {tenantLabel}
         </Link>
         {breadcrumbs.map((crumb, index) => (
           <div key={index} className="flex items-center gap-1">

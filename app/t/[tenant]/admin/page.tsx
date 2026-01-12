@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic"
 
 export default async function AdminPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
-  const { session, tenantId } = await requireTenantSession(tenant)
+  const { session, tenantId, tenantName } = await requireTenantSession(tenant)
 
   // Only ADMIN can access admin panel
   if (session.role !== ADMIN_ROLE) {
@@ -45,6 +45,7 @@ export default async function AdminPage({ params }: { params: Promise<{ tenant: 
   return (
     <AppLayout
       tenant={tenant}
+      tenantName={settings.name || tenantName}
       userName={session.name}
       userRole={session.role}
       breadcrumbs={[{ label: "Admin", href: `/t/${tenant}/admin` }]}

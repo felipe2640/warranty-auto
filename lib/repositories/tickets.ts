@@ -170,7 +170,7 @@ export async function updateTicketStatus(
   additionalData?: Partial<Ticket>,
 ): Promise<void> {
   const ticket = await getTicketById(ticketId)
-  if (!ticket) throw new Error("Ticket not found")
+  if (!ticket) throw new Error("Ticket nao encontrado")
 
   const now = new Date()
   const stageHistory = ticket.stageHistory || []
@@ -253,13 +253,13 @@ export async function revertTicketStatus(
   reason: string,
 ): Promise<void> {
   const ticket = await getTicketById(ticketId)
-  if (!ticket) throw new Error("Ticket not found")
+  if (!ticket) throw new Error("Ticket nao encontrado")
 
   const currentIndex = STATUS_ORDER.indexOf(ticket.status)
   const targetIndex = STATUS_ORDER.indexOf(targetStatus)
 
   if (targetIndex >= currentIndex) {
-    throw new Error("Can only revert to a previous status")
+    throw new Error("So e possivel voltar para um status anterior")
   }
 
   const now = new Date()
@@ -524,7 +524,7 @@ export async function addAttachment(
 ): Promise<string> {
   const ticket = await getTicketById(ticketId)
   if (!ticket || !ticket.driveFolderId) {
-    throw new Error("Ticket or folder not found")
+    throw new Error("Ticket ou pasta nao encontrada")
   }
 
   // Upload to Drive

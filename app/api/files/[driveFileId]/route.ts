@@ -8,12 +8,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ driv
   try {
     const session = await getSession()
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     const roleValidation = RoleEnum.safeParse(session.role)
     if (!roleValidation.success) {
-      return NextResponse.json({ error: "Permission denied" }, { status: 403 })
+      return NextResponse.json({ error: "Permissão negada" }, { status: 403 })
     }
 
     const { driveFileId } = await params
@@ -40,6 +40,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ driv
     return new Response(stream, { headers })
   } catch (error) {
     console.error("File fetch error:", error)
-    return NextResponse.json({ error: "Failed to fetch file" }, { status: 500 })
+    return NextResponse.json({ error: "Erro ao buscar arquivo" }, { status: 500 })
   }
 }

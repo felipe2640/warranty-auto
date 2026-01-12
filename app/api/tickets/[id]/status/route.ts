@@ -8,7 +8,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const session = await getSession()
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
     }
 
     const { id } = await params
@@ -44,11 +44,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (resolvedAction === "revert") {
       if (!permissions.canRevertStage) {
-        return NextResponse.json({ error: "Permission denied" }, { status: 403 })
+        return NextResponse.json({ error: "Permissao negada" }, { status: 403 })
       }
 
       if (!targetStatus || !reason) {
-        return NextResponse.json({ error: "Target status and reason are required" }, { status: 400 })
+        return NextResponse.json({ error: "Status de destino e motivo sao obrigatorios" }, { status: 400 })
       }
 
       const revertResult = await revertTicketStatusWithAudit({
@@ -68,9 +68,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: true, newStatus: targetStatus })
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+    return NextResponse.json({ error: "Acao invalida" }, { status: 400 })
   } catch (error) {
     console.error("Update status error:", error)
-    return NextResponse.json({ error: "Failed to update status" }, { status: 500 })
+    return NextResponse.json({ error: "Erro ao atualizar status" }, { status: 500 })
   }
 }

@@ -12,7 +12,7 @@ interface NewTicketPageProps {
 export default async function NewTicketPage({ params }: NewTicketPageProps) {
   const { tenant } = await params
 
-  const { session, tenantId } = await requireTenantSession(tenant)
+  const { session, tenantId, tenantName } = await requireTenantSession(tenant)
   const permissions = getUserPermissions(session.role)
 
   if (!permissions.canCreateTicket) {
@@ -29,6 +29,7 @@ export default async function NewTicketPage({ params }: NewTicketPageProps) {
   return (
     <AppLayout
       tenant={tenant}
+      tenantName={tenantSettings?.name || tenantName}
       userName={session.name}
       userRole={session.role}
       breadcrumbs={[

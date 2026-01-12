@@ -42,6 +42,7 @@ interface AgendaClientProps {
   suppliers: Supplier[]
   stores: Store[]
   tenant: string
+  tenantName?: string
   userName: string
   userRole: Role
   canPerformActions: boolean
@@ -132,6 +133,7 @@ export function AgendaClient({
   suppliers,
   stores,
   tenant,
+  tenantName,
   userName,
   userRole,
   canPerformActions,
@@ -699,6 +701,7 @@ export function AgendaClient({
   return (
     <AppLayout
       tenant={tenant}
+      tenantName={tenantName}
       userName={userName}
       userRole={userRole}
       breadcrumbs={[{ label: "Agenda", href: `/t/${tenant}/agenda` }]}

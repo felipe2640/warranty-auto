@@ -21,7 +21,7 @@ export default async function WarrantyListPage({
 }) {
   const { tenant } = await params
   const filters = await searchParams
-  const { session, tenantId } = await requireTenantSession(tenant)
+  const { session, tenantId, tenantName } = await requireTenantSession(tenant)
 
   const [stores, tenantSettings] = await Promise.all([
     fetchStores(tenantId),
@@ -50,6 +50,7 @@ export default async function WarrantyListPage({
       tickets={tickets}
       stores={activeStores}
       tenant={tenant}
+      tenantName={tenantSettings?.name || tenantName}
       userName={session.name}
       userRole={session.role}
       userStoreId={session.storeId}

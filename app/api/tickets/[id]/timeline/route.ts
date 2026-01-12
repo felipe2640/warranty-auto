@@ -9,7 +9,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const session = await getSession()
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     const { id } = await params
@@ -27,12 +27,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const shouldSetNextAction = requiresNextAction || setNextAction
 
     if (!permissions.canAddTimeline) {
-      return NextResponse.json({ error: "Permission denied" }, { status: 403 })
+      return NextResponse.json({ error: "Permissão negada" }, { status: 403 })
     }
 
     // Check permission for setting next action
     if (shouldSetNextAction && !permissions.canSetNextAction) {
-      return NextResponse.json({ error: "Permission denied to set next action" }, { status: 403 })
+      return NextResponse.json({ error: "Permissão negada para definir próxima ação" }, { status: 403 })
     }
 
     const nextActionDate = shouldSetNextAction && nextActionAt ? toDateOnlyString(nextActionAt) : undefined
@@ -62,12 +62,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
 
     if (!entryId) {
-      return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
+      return NextResponse.json({ error: "Ticket não encontrado" }, { status: 404 })
     }
 
     return NextResponse.json({ success: true, entryId })
   } catch (error) {
     console.error("Add timeline error:", error)
-    return NextResponse.json({ error: "Failed to add timeline entry" }, { status: 500 })
+    return NextResponse.json({ error: "Erro ao adicionar registro na timeline" }, { status: 500 })
   }
 }

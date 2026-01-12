@@ -23,6 +23,7 @@ interface AdminClientProps {
   settings: TenantSettings
   openTicketsCount: number
   tenant: string
+  tenantName?: string
   userName: string
   userRole: Role
 }
@@ -34,6 +35,7 @@ export function AdminClient({
   settings,
   openTicketsCount,
   tenant,
+  tenantName,
   userName,
   userRole,
 }: AdminClientProps) {
@@ -58,6 +60,7 @@ export function AdminClient({
   return (
     <AppLayout
       tenant={tenant}
+      tenantName={tenantName}
       userName={userName}
       userRole={userRole}
       breadcrumbs={[{ label: "Admin", href: `/t/${tenant}/admin` }]}

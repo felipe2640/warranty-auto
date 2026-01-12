@@ -269,7 +269,7 @@ export async function createTicketWithUploads(options: {
   const tenantSettings = await getTenantSettings(options.tenantId)
 
   if (!tenantSettings?.driveRootFolderId) {
-    return { error: "Drive folder not configured", status: 400 }
+    return { error: "Pasta do Drive nao configurada", status: 400 }
   }
 
   const signatureDataUrl = options.formData.get("signatureDataUrl") as string
@@ -424,11 +424,11 @@ export async function updateTicketDetails(options: {
 }) {
   const ticket = await getTicketById(options.ticketId)
   if (!ticket) {
-    return { error: { message: "Ticket not found" }, status: 404 }
+    return { error: { message: "Ticket nao encontrado" }, status: 404 }
   }
 
   if (ticket.tenantId !== options.tenantId) {
-    return { error: { message: "Access denied" }, status: 403 }
+    return { error: { message: "Acesso negado" }, status: 403 }
   }
 
   const validation = UpdateTicketDetailsSchema.safeParse(options.payload)
@@ -440,14 +440,14 @@ export async function updateTicketDetails(options: {
   const onlyOwnStorePolicy = tenantSettings?.policies.recebedorOnlyOwnStore ?? false
 
   if (onlyOwnStorePolicy && options.role === "RECEBEDOR" && options.userStoreId && ticket.storeId !== options.userStoreId) {
-    return { error: { message: "Permission denied" }, status: 403 }
+    return { error: { message: "Permissao negada" }, status: 403 }
   }
 
   const allowStoreChange = !onlyOwnStorePolicy
   const allowedFields = getAllowedEditFields(options.role, allowStoreChange)
 
   if (allowedFields.size === 0) {
-    return { error: { message: "Permission denied" }, status: 403 }
+    return { error: { message: "Permissao negada" }, status: 403 }
   }
 
   const normalizedPatch = Object.fromEntries(
@@ -513,7 +513,7 @@ export async function updateTicketDetails(options: {
 
   const updatedTicket = await updateTicketEditableFields(options.ticketId, options.tenantId, updatePatch)
   if (!updatedTicket) {
-    return { error: { message: "Ticket not found" }, status: 404 }
+    return { error: { message: "Ticket nao encontrado" }, status: 404 }
   }
 
   const now = new Date()
@@ -725,11 +725,11 @@ export async function advanceTicketStatus(options: {
 }) {
   const ticket = await getTicketById(options.ticketId)
   if (!ticket) {
-    return { error: { message: "Ticket not found" }, status: 404 }
+    return { error: { message: "Ticket nao encontrado" }, status: 404 }
   }
 
   if (ticket.tenantId !== options.tenantId) {
-    return { error: { message: "Access denied" }, status: 403 }
+    return { error: { message: "Acesso negado" }, status: 403 }
   }
 
   const hasCanhoto = await hasAttachmentOfCategory(options.ticketId, "CANHOTO")
@@ -785,7 +785,7 @@ export async function advanceTicketStatus(options: {
 
   const nextStatus = nextStatusMap[ticket.status]
   if (!nextStatus) {
-    return { error: { message: "Cannot advance from this status" }, status: 400 }
+    return { error: { message: "Nao e possivel avancar a partir deste status" }, status: 400 }
   }
 
   if (options.nextStatus && options.nextStatus !== nextStatus) {
@@ -818,15 +818,15 @@ export async function revertTicketStatusWithAudit(options: {
 }) {
   const ticket = await getTicketById(options.ticketId)
   if (!ticket) {
-    return { error: { message: "Ticket not found" }, status: 404 }
+    return { error: { message: "Ticket nao encontrado" }, status: 404 }
   }
 
   if (ticket.tenantId !== options.tenantId) {
-    return { error: { message: "Access denied" }, status: 403 }
+    return { error: { message: "Acesso negado" }, status: 403 }
   }
 
   if (options.role !== "ADMIN") {
-    return { error: { message: "Permission denied" }, status: 403 }
+    return { error: { message: "Permissao negada" }, status: 403 }
   }
 
   await revertTicketStatus(options.ticketId, options.targetStatus, options.userId, options.userName, options.reason)

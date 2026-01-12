@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const permissions = getUserPermissions(session.role)
 
     if (!permissions.canCreateTicket) {
-      return NextResponse.json({ error: "Permission denied" }, { status: 403 })
+      return NextResponse.json({ error: "Permissão negada" }, { status: 403 })
     }
 
     const result = await createTicketWithUploads({
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, ticketId: result.ticketId })
   } catch (error) {
     console.error("Create ticket error:", error)
-    return NextResponse.json({ error: "Failed to create ticket" }, { status: 500 })
+    return NextResponse.json({ error: "Erro ao criar ticket" }, { status: 500 })
   }
 }
 
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     const tenantSlug = searchParams.get("tenant")
 
     if (!tenantSlug) {
-      return NextResponse.json({ error: "Tenant is required" }, { status: 400 })
+      return NextResponse.json({ error: "Tenant é obrigatório" }, { status: 400 })
     }
 
     const { session, tenantId } = await requireTenantSession(tenantSlug)
@@ -82,6 +82,6 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("List tickets error:", error)
-    return NextResponse.json({ error: "Failed to list tickets" }, { status: 500 })
+    return NextResponse.json({ error: "Erro ao listar tickets" }, { status: 500 })
   }
 }

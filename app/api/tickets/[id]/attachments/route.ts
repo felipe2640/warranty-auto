@@ -43,7 +43,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const session = await getSession()
     if (!session) {
-      return errorResponse("UNAUTHORIZED", "Unauthorized", 401)
+      return errorResponse("UNAUTHORIZED", "Não autorizado", 401)
     }
 
     const { id } = await params

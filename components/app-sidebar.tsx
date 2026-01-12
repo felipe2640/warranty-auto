@@ -19,14 +19,16 @@ import { getUserPermissions } from "@/lib/permissions"
 
 interface AppSidebarProps {
   tenant: string
+  tenantName?: string
   userRole: Role
   userName?: string
   userEmail?: string
 }
 
-export function AppSidebar({ tenant, userRole, userName, userEmail }: AppSidebarProps) {
+export function AppSidebar({ tenant, tenantName, userRole, userName, userEmail }: AppSidebarProps) {
   const pathname = usePathname()
   const permissions = getUserPermissions(userRole)
+  const tenantLabel = tenantName?.trim() || tenant
 
   const navigation = [
     {
@@ -76,7 +78,7 @@ export function AppSidebar({ tenant, userRole, userName, userEmail }: AppSidebar
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-semibold">Sistema Garantias</span>
-            <span className="text-xs text-muted-foreground capitalize">{tenant}</span>
+            <span className="text-xs text-muted-foreground">{tenantLabel}</span>
           </div>
         </div>
       </SidebarHeader>

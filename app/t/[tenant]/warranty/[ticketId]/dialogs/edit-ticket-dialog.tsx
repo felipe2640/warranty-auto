@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Loader2, AlertCircle } from "lucide-react"
 import type { Supplier, Store, Ticket, TimelineEntry, UpdateTicketDetailsInput } from "@/lib/schemas"
 import { UpdateTicketDetailsSchema } from "@/lib/schemas"
@@ -338,11 +339,13 @@ export function EditTicketDialog({
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="h-[90vh] overflow-y-auto">
+        <SheetContent side="bottom" className="h-[90vh]">
           <SheetHeader>
             <SheetTitle>Editar ticket</SheetTitle>
           </SheetHeader>
-          <div className="mt-4">{content}</div>
+          <ScrollArea className="mt-4 h-[calc(90vh-4.5rem)] pr-4">
+            {content}
+          </ScrollArea>
         </SheetContent>
       </Sheet>
     )
@@ -354,7 +357,9 @@ export function EditTicketDialog({
         <DialogHeader>
           <DialogTitle>Editar ticket</DialogTitle>
         </DialogHeader>
-        {content}
+        <ScrollArea className="max-h-[70vh] pr-4">
+          {content}
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   )

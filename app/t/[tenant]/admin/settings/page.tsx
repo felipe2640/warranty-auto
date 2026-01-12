@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic"
 
 export default async function AdminSettingsPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
-  const { session } = await requireTenantSession(tenant)
+  const { session, tenantName } = await requireTenantSession(tenant)
 
   if (session.role !== ADMIN_ROLE) {
     redirect(`/t/${tenant}`)
@@ -37,6 +37,7 @@ export default async function AdminSettingsPage({ params }: { params: Promise<{ 
   return (
     <AppLayout
       tenant={tenant}
+      tenantName={settings.name || tenantName}
       userName={session.name}
       userRole={session.role}
       breadcrumbs={[

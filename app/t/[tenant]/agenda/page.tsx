@@ -13,7 +13,7 @@ export default async function AgendaPage({
 }) {
   const { tenant } = await params
   const { tab, cursor } = await searchParams
-  const { session, tenantId } = await requireTenantSession(tenant)
+  const { session, tenantId, tenantName } = await requireTenantSession(tenant)
 
   const activeTab = tab === "atrasadas" || tab === "proximos" || tab === "hoje" ? tab : "hoje"
 
@@ -57,6 +57,7 @@ export default async function AgendaPage({
       suppliers={suppliers}
       stores={stores}
       tenant={tenant}
+      tenantName={tenantName}
       userName={session.name}
       userRole={session.role}
       canPerformActions={canPerformActions}

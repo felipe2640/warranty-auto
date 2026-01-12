@@ -25,12 +25,21 @@ interface DashboardClientProps {
   stats: DashboardStats
   stores: Store[]
   tenant: string
+  tenantName?: string
   userName: string
   userRole: Role
   userStoreId?: string
 }
 
-export function DashboardClient({ stats, stores, tenant, userName, userRole, userStoreId }: DashboardClientProps) {
+export function DashboardClient({
+  stats,
+  stores,
+  tenant,
+  tenantName,
+  userName,
+  userRole,
+  userStoreId,
+}: DashboardClientProps) {
   const [selectedStoreId, setSelectedStoreId] = useState<string>(userStoreId || "all")
   const TodayIcon = ACTION_KIND_META.TODAY.icon
   const OverdueIcon = ACTION_KIND_META.OVERDUE.icon
@@ -57,6 +66,7 @@ export function DashboardClient({ stats, stores, tenant, userName, userRole, use
   return (
     <AppLayout
       tenant={tenant}
+      tenantName={tenantName}
       userName={userName}
       userRole={userRole}
       breadcrumbs={[{ label: "Dashboard", href: `/t/${tenant}/dashboard` }]}

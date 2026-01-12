@@ -7,7 +7,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const session = await getSession()
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
     }
 
     const { id } = await params
@@ -20,13 +20,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     })
 
     if (!detail) {
-      return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
+      return NextResponse.json({ error: "Ticket nao encontrado" }, { status: 404 })
     }
 
     return NextResponse.json(detail)
   } catch (error) {
     console.error("Get ticket error:", error)
-    return NextResponse.json({ error: "Failed to get ticket" }, { status: 500 })
+    return NextResponse.json({ error: "Erro ao buscar ticket" }, { status: 500 })
   }
 }
 
@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try {
     const session = await getSession()
     if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Nao autorizado" }, { status: 401 })
     }
 
     const { id } = await params
@@ -62,6 +62,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     })
   } catch (error) {
     console.error("Update ticket error:", error)
-    return NextResponse.json({ error: "Failed to update ticket" }, { status: 500 })
+    return NextResponse.json({ error: "Erro ao atualizar ticket" }, { status: 500 })
   }
 }

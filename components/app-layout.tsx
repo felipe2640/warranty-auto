@@ -15,6 +15,7 @@ interface Breadcrumb {
 interface AppLayoutProps {
   children: ReactNode
   tenant: string
+  tenantName?: string
   userName: string
   userRole: Role
   userEmail?: string
@@ -31,6 +32,7 @@ interface AppLayoutProps {
 export function AppLayout({
   children,
   tenant,
+  tenantName,
   userName,
   userRole,
   userEmail,
@@ -45,10 +47,17 @@ export function AppLayout({
 }: AppLayoutProps) {
   return (
     <SidebarProvider>
-      <AppSidebar tenant={tenant} userRole={userRole} userName={userName} userEmail={userEmail} />
+      <AppSidebar
+        tenant={tenant}
+        tenantName={tenantName}
+        userRole={userRole}
+        userName={userName}
+        userEmail={userEmail}
+      />
       <SidebarInset>
         <Topbar
           tenant={tenant}
+          tenantName={tenantName}
           userName={userName}
           userRole={userRole}
           breadcrumbs={breadcrumbs}

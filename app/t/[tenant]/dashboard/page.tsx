@@ -16,7 +16,7 @@ interface DashboardStats {
 
 export default async function DashboardPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
-  const { session, tenantId } = await requireTenantSession(tenant)
+  const { session, tenantId, tenantName } = await requireTenantSession(tenant)
 
   const stores = await fetchStores(tenantId)
   const storeMap = new Map(stores.map((store) => [store.id, store.name]))
@@ -54,6 +54,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ tena
       stats={stats}
       stores={stores}
       tenant={tenant}
+      tenantName={tenantName}
       userName={session.name}
       userRole={session.role}
       userStoreId={session.storeId}

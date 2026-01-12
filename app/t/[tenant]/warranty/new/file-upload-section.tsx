@@ -165,7 +165,7 @@ function FileUploadSectionComponent({ files, onFilesChange, disabled }: FileUplo
           <div className="mt-4">
             {previewFile?.type.startsWith("image/") ? (
               <img
-                src={previewFile.url || "/placeholder.svg"}
+                src={previewFile.url || "/image.png"}
                 alt={previewFile.name}
                 className="max-w-full max-h-[60vh] mx-auto rounded-lg"
               />

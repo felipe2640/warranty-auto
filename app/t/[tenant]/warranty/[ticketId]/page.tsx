@@ -12,7 +12,7 @@ interface TicketDetailPageProps {
 export default async function TicketDetailPage({ params }: TicketDetailPageProps) {
   const { tenant, ticketId } = await params
 
-  const { session, tenantId } = await requireTenantSession(tenant)
+  const { session, tenantId, tenantName } = await requireTenantSession(tenant)
 
   const permissions = getUserPermissions(session.role)
   const detail = await fetchTicketDetail({
@@ -29,6 +29,7 @@ export default async function TicketDetailPage({ params }: TicketDetailPageProps
   return (
     <AppLayout
       tenant={tenant}
+      tenantName={detail.tenantSettings?.name || tenantName}
       userName={session.name}
       userRole={session.role}
       breadcrumbs={[
