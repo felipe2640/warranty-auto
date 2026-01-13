@@ -98,11 +98,11 @@ export function LoginForm({ tenant, tenantName }: LoginFormProps) {
             )}
           </Button>
 
-          <div className="text-center text-sm text-muted-foreground">
+          {/* <div className="text-center text-sm text-muted-foreground">
             <Link href={`/t/${tenant}/help`} className="underline underline-offset-4 hover:text-foreground">
               Guia rápido com as telas do sistema
             </Link>
-          </div>
+          </div> */}
         </form>
       </CardContent>
     </Card>
