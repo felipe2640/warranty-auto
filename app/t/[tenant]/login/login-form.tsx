@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { signIn } from "@/lib/firebase/client"
@@ -96,6 +97,12 @@ export function LoginForm({ tenant, tenantName }: LoginFormProps) {
               "Entrar"
             )}
           </Button>
+
+          <div className="text-center text-sm text-muted-foreground">
+            <Link href={`/t/${tenant}/help`} className="underline underline-offset-4 hover:text-foreground">
+              Guia rápido com as telas do sistema
+            </Link>
+          </div>
         </form>
       </CardContent>
     </Card>

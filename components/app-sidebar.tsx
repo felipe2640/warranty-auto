@@ -13,7 +13,7 @@ import {
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar"
-import { LayoutDashboard, FileText, Calendar, Settings, LogOut, Shield } from "lucide-react"
+import { LayoutDashboard, FileText, Calendar, Settings, LogOut, Shield, LifeBuoy } from "lucide-react"
 import type { Role } from "@/lib/schemas"
 import { getUserPermissions } from "@/lib/permissions"
 
@@ -46,6 +46,11 @@ export function AppSidebar({ tenant, tenantName, userRole, userName, userEmail }
       name: "Agenda",
       href: `/t/${tenant}/agenda`,
       icon: Calendar,
+    },
+    {
+      name: "Ajuda",
+      href: `/t/${tenant}/help`,
+      icon: LifeBuoy,
     },
   ]
 

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { ChevronRight, User, LogOut, ArrowLeft } from "lucide-react"
+import { ChevronRight, User, LogOut, ArrowLeft, LifeBuoy } from "lucide-react"
 import type { Role, Store } from "@/lib/schemas"
 
 interface Breadcrumb {
@@ -140,6 +140,13 @@ export function Topbar({
               <span className="text-xs font-normal text-muted-foreground">{userRole}</span>
             </div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href={`/t/${tenant}/help`}>
+              <LifeBuoy className="mr-2 h-4 w-4" />
+              Ajuda
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleLogout} className="text-destructive">
             <LogOut className="mr-2 h-4 w-4" />
