@@ -81,3 +81,5 @@ lib/                    # Camadas de domínio e serviços
 - [docs/GOOGLE_DRIVE.md](docs/GOOGLE_DRIVE.md)
 - [docs/FIREBASE.md](docs/FIREBASE.md)
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+
+## insightdireto.com.br
