@@ -406,7 +406,7 @@ export function normalizeCell(value: string) {
 
 // Login schema
 export const LoginFormSchema = z.object({
-  email: z.string().email("Email inválido"),
+  username: z.string().min(1, "Usuário é obrigatório"),
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
 })
 export type LoginFormData = z.infer<typeof LoginFormSchema>
