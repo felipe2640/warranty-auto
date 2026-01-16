@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { signIn } from "@/lib/firebase/client"
 import { LoginFormSchema, type LoginFormData } from "@/lib/schemas"
+import { normalizeLoginIdentifier } from "@/lib/auth/identifier"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -37,7 +38,8 @@ export function LoginForm({ tenant, tenantName }: LoginFormProps) {
     setIsLoading(true)
 
     try {
-      const { idToken } = await signIn(data.email, data.password)
+      const identifier = normalizeLoginIdentifier(data.username, tenant)
+      const { idToken } = await signIn(identifier, data.password)
 
       // Create session cookie
       const response = await fetch("/api/auth/session", {
@@ -55,7 +57,7 @@ export function LoginForm({ tenant, tenantName }: LoginFormProps) {
       router.refresh()
     } catch (err) {
       console.error("Login error:", err)
-      setError(err instanceof Error ? err.message : "Email ou senha inválidos")
+      setError("Usuário ou senha inválidos")
     } finally {
       setIsLoading(false)
     }
@@ -76,9 +78,9 @@ export function LoginForm({ tenant, tenantName }: LoginFormProps) {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="seu@email.com" {...register("email")} />
-            {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+            <Label htmlFor="username">Usuário</Label>
+            <Input id="username" type="text" placeholder="seu.usuario" {...register("username")} />
+            {errors.username && <p className="text-sm text-destructive">{errors.username.message}</p>}
           </div>
 
           <div className="space-y-2">

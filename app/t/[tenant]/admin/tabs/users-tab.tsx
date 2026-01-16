@@ -9,16 +9,19 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Plus, MoreHorizontal, Loader2, UserCheck, UserX, Key } from "lucide-react"
+import { formatTenantEmail } from "@/lib/auth/identifier"
 import type { User, Store, Role } from "@/lib/schemas"
 
 interface UsersTabProps {
   users: User[]
   stores: Store[]
+  tenant: string
   onRefresh?: () => void
 }
 
@@ -30,15 +33,17 @@ const ROLES: { value: Role; label: string }[] = [
   { value: "RECEBEDOR", label: "Recebedor" },
 ]
 
-export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
+export function UsersTab({ users, stores, tenant, onRefresh }: UsersTabProps) {
   const router = useRouter()
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resetLink, setResetLink] = useState<string | null>(null)
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
 
   // Form state
-  const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [name, setName] = useState("")
   const [role, setRole] = useState<Role>("RECEBEDOR")
@@ -46,7 +51,7 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
   const [active, setActive] = useState(true)
 
   const resetForm = () => {
-    setEmail("")
+    setUsername("")
     setPassword("")
     setName("")
     setRole("RECEBEDOR")
@@ -63,7 +68,7 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
 
   const openEditSheet = (user: User) => {
     setEditingUser(user)
-    setEmail(user.email)
+    setUsername("")
     setName(user.name)
     setRole(user.role)
     setStoreId(user.storeId || "")
@@ -86,7 +91,7 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
         response = await fetch("/api/admin/users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name, role, storeId: storeId || null }),
+          body: JSON.stringify({ username, password, name, role, storeId: storeId || null }),
         })
       }
 
@@ -125,16 +130,53 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
       const res = await fetch(`/api/admin/users/${userId}/reset-password`, { method: "POST" })
       const data = await res.json()
       if (data.resetLink) {
-        alert(`Link de reset: ${data.resetLink}`)
+        setResetLink(data.resetLink)
+        setIsResetDialogOpen(true)
+      } else {
+        setError("Não foi possível gerar o link de reset")
       }
     } catch (error) {
       console.error("[v0] Error resetting password:", error)
+      setError("Erro ao gerar link de reset")
     }
   }
+
+  const normalizeUserEmail = async (user: User) => {
+    const baseUsername = user.email.split("@")[0]
+    const normalizedEmail = formatTenantEmail(baseUsername, tenant)
+    if (normalizedEmail === user.email) {
+      return
+    }
+
+    try {
+      await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail }),
+      })
+      onRefresh ? onRefresh() : router.refresh()
+    } catch (error) {
+      console.error("[v0] Error normalizing email:", error)
+      setError("Erro ao normalizar email do usuário")
+    }
+  }
+
+  const needsEmailNormalization = (email: string) => !email.toLowerCase().endsWith(`@${tenant}.sys`)
+
+  const getUsernameFromEmail = (email: string) => email.split("@")[0]
 
   const getStoreName = (storeId?: string) => {
     if (!storeId) return "—"
     return stores.find((s) => s.id === storeId)?.name || storeId
+  }
+
+  const handleCopyResetLink = async () => {
+    if (!resetLink) return
+    try {
+      await navigator.clipboard.writeText(resetLink)
+    } catch (copyError) {
+      console.error("[v0] Error copying reset link:", copyError)
+    }
   }
 
   return (
@@ -157,7 +199,7 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
+                  <TableHead>Usuário</TableHead>
                   <TableHead>Papel</TableHead>
                   <TableHead>Loja Padrão</TableHead>
                   <TableHead>Status</TableHead>
@@ -168,7 +210,7 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
                 {users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{getUsernameFromEmail(user.email)}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{ROLES.find((r) => r.value === user.role)?.label || user.role}</Badge>
                     </TableCell>
@@ -193,6 +235,11 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
                             <Key className="mr-2 h-4 w-4" />
                             Resetar Senha
                           </DropdownMenuItem>
+                          {needsEmailNormalization(user.email) && (
+                            <DropdownMenuItem onClick={() => normalizeUserEmail(user)}>
+                              Normalizar Email
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => toggleUserActive(user)}>
                             {user.active ? (
                               <>
@@ -223,7 +270,7 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-medium">{user.name}</p>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
+                      <p className="text-sm text-muted-foreground">{getUsernameFromEmail(user.email)}</p>
                       <div className="flex items-center gap-2 mt-2">
                         <Badge variant="outline" className="text-xs">
                           {ROLES.find((r) => r.value === user.role)?.label || user.role}
@@ -246,6 +293,9 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEditSheet(user)}>Editar</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => resetPassword(user.id)}>Resetar Senha</DropdownMenuItem>
+                        {needsEmailNormalization(user.email) && (
+                          <DropdownMenuItem onClick={() => normalizeUserEmail(user)}>Normalizar Email</DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => toggleUserActive(user)}>
                           {user.active ? "Desativar" : "Ativar"}
                         </DropdownMenuItem>
@@ -282,12 +332,12 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
               {!editingUser && (
                 <>
                   <div className="space-y-2">
-                    <Label>Email *</Label>
+                    <Label>Nome de Usuário *</Label>
                     <Input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="email@exemplo.com"
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Digite o nome de usuário"
                     />
                   </div>
                   <div className="space-y-2">
@@ -302,56 +352,56 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
                 </>
               )}
 
-                <div className="space-y-2">
-                  <Label>Nome *</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" />
-                </div>
+              <div className="space-y-2">
+                <Label>Nome *</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" />
+              </div>
 
-                <div className="space-y-2">
-                  <Label>Papel *</Label>
-                  <Select value={role} onValueChange={(value) => setRole(value as Role)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLES.map((r) => (
-                        <SelectItem key={r.value} value={r.value}>
-                          {r.label}
+              <div className="space-y-2">
+                <Label>Papel *</Label>
+                <Select value={role} onValueChange={(value) => setRole(value as Role)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Loja Padrão</Label>
+                <Select value={storeId || "none"} onValueChange={(v) => setStoreId(v === "none" ? "" : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar loja" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma</SelectItem>
+                    {stores
+                      .filter((s) => s.active)
+                      .map((store) => (
+                        <SelectItem key={store.id} value={store.id}>
+                          {store.name}
                         </SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Loja Padrão</Label>
-                  <Select value={storeId || "none"} onValueChange={(v) => setStoreId(v === "none" ? "" : v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecionar loja" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhuma</SelectItem>
-                      {stores
-                        .filter((s) => s.active)
-                        .map((store) => (
-                          <SelectItem key={store.id} value={store.id}>
-                            {store.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {editingUser && (
-                  <div className="flex items-center justify-between rounded-lg border p-4">
-                    <div>
-                      <Label>Ativo</Label>
-                      <p className="text-sm text-muted-foreground">Usuário pode acessar o sistema</p>
-                    </div>
-                    <Switch checked={active} onCheckedChange={setActive} />
-                  </div>
-                )}
+                  </SelectContent>
+                </Select>
               </div>
+
+              {editingUser && (
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div>
+                    <Label>Ativo</Label>
+                    <p className="text-sm text-muted-foreground">Usuário pode acessar o sistema</p>
+                  </div>
+                  <Switch checked={active} onCheckedChange={setActive} />
+                </div>
+              )}
+            </div>
 
             <SheetFooter>
               <Button variant="outline" onClick={() => setIsSheetOpen(false)}>
@@ -359,7 +409,7 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={isSubmitting || (!editingUser && (!email || !password || !name))}
+                disabled={isSubmitting || (!editingUser && (!username || !password || !name))}
               >
                 {isSubmitting ? (
                   <>
@@ -376,6 +426,27 @@ export function UsersTab({ users, stores, onRefresh }: UsersTabProps) {
           </>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Link de reset de senha</DialogTitle>
+            <DialogDescription>Copie o link abaixo e envie para a pessoa.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Link</Label>
+            <Input value={resetLink ?? ""} readOnly />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetDialogOpen(false)}>
+              Fechar
+            </Button>
+            <Button onClick={handleCopyResetLink} disabled={!resetLink}>
+              Copiar link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
