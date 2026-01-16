@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -17,6 +18,7 @@ import { AddTimelineDialog } from "./dialogs/add-timeline-dialog"
 import { AddAttachmentDialog } from "./dialogs/add-attachment-dialog"
 import { SetSupplierDialog } from "./dialogs/set-supplier-dialog"
 import { EditTicketDialog } from "./dialogs/edit-ticket-dialog"
+import { invalidateTicket, useTicket, type TicketDetailData } from "@/hooks/use-ticket"
 import { getUserPermissions } from "@/lib/permissions"
 import type { Ticket, TimelineEntry, Attachment, AuditEntry, Supplier, Role, Status, Store, TenantSettings } from "@/lib/schemas"
 import type { NextTransitionChecklist, StageSummary } from "@/lib/types/warranty"
@@ -45,8 +47,8 @@ export function TicketDetailClient({
   timeline: initialTimeline,
   attachments: initialAttachments,
   audit: initialAudit,
-  suppliers,
-  stores,
+  suppliers: initialSuppliers,
+  stores: initialStores,
   tenantPolicies,
   userRole,
   userId,
@@ -55,13 +57,30 @@ export function TicketDetailClient({
   stageSummaryMap,
 }: TicketDetailClientProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const permissions = getUserPermissions(userRole)
+  const ticketId = initialTicket.id
 
-  const [ticket, setTicket] = useState(initialTicket)
-  const [timeline, setTimeline] = useState(initialTimeline)
-  const [attachments, setAttachments] = useState(initialAttachments)
-  const [transitionChecklist, setTransitionChecklist] = useState(nextTransitionChecklist)
-  const [stageSummary, setStageSummary] = useState(stageSummaryMap)
+  const initialData: TicketDetailData = {
+    ticket: initialTicket,
+    timeline: initialTimeline,
+    attachments: initialAttachments,
+    audit: initialAudit,
+    suppliers: initialSuppliers,
+    stores: initialStores,
+    nextTransitionChecklist,
+    stageSummaryMap,
+  }
+
+  const { data: ticketData } = useTicket(ticketId, initialData)
+  const ticket = ticketData?.ticket ?? initialTicket
+  const timeline = ticketData?.timeline ?? initialTimeline
+  const attachments = ticketData?.attachments ?? initialAttachments
+  const transitionChecklist = ticketData?.nextTransitionChecklist ?? nextTransitionChecklist
+  const stageSummary = ticketData?.stageSummaryMap ?? stageSummaryMap
+  const audit = ticketData?.audit ?? initialAudit
+  const suppliers = ticketData?.suppliers ?? initialSuppliers
+  const stores = ticketData?.stores ?? initialStores
 
   const [showAdvanceDialog, setShowAdvanceDialog] = useState(false)
   const [showRevertDialog, setShowRevertDialog] = useState(false)
@@ -85,29 +104,25 @@ export function TicketDetailClient({
   const isOverdue = ticket.dueDate && ticket.dueDate < today && ticket.status !== "ENCERRADO"
   const hasNextAction = ticket.nextActionAt && ticket.nextActionAt <= today
 
-  const refreshData = async () => {
-    const response = await fetch(`/api/tickets/${ticket.id}`)
-    if (response.ok) {
-      const data = await response.json()
-      setTicket(data.ticket)
-      setTimeline(data.timeline)
-      setAttachments(data.attachments)
-      setTransitionChecklist(data.nextTransitionChecklist)
-      setStageSummary(data.stageSummaryMap)
-    }
-  }
-
   const handleTicketUpdated = (updatedTicket: Ticket & { storeName?: string; supplierName?: string }, timelineEntry?: TimelineEntry) => {
-    setTicket((prev) => ({
-      ...prev,
-      ...updatedTicket,
-      storeName: updatedTicket.storeName ?? prev.storeName,
-      supplierName: updatedTicket.supplierName ?? prev.supplierName,
-    }))
+    queryClient.setQueryData<TicketDetailData>(["ticket", ticketId], (previous) => {
+      if (!previous) {
+        return previous
+      }
 
-    if (timelineEntry) {
-      setTimeline((prev) => [timelineEntry, ...prev])
-    }
+      const nextTicket = {
+        ...previous.ticket,
+        ...updatedTicket,
+        storeName: updatedTicket.storeName ?? previous.ticket.storeName,
+        supplierName: updatedTicket.supplierName ?? previous.ticket.supplierName,
+      }
+
+      return {
+        ...previous,
+        ticket: nextTicket,
+        timeline: timelineEntry ? [timelineEntry, ...previous.timeline] : previous.timeline,
+      }
+    })
   }
 
   const formatShortId = (id: string) => {
@@ -238,7 +253,7 @@ export function TicketDetailClient({
 
         {permissions.canSeeAudit && (
           <TabsContent value="auditoria" className="mt-4">
-            <TicketAuditTab audit={initialAudit} />
+            <TicketAuditTab audit={audit} />
           </TabsContent>
         )}
       </Tabs>
@@ -249,7 +264,7 @@ export function TicketDetailClient({
         onOpenChange={setShowAdvanceDialog}
         ticket={ticket}
         suppliers={suppliers}
-        onSuccess={refreshData}
+        onSuccess={() => invalidateTicket(queryClient, ticket.id)}
         checklist={transitionChecklist}
         onRequestSupplier={() => setShowSupplierDialog(true)}
         onRequestAttachment={() => setShowAttachmentDialog(true)}
@@ -259,7 +274,7 @@ export function TicketDetailClient({
         open={showRevertDialog}
         onOpenChange={setShowRevertDialog}
         ticket={ticket}
-        onSuccess={refreshData}
+        onSuccess={() => invalidateTicket(queryClient, ticket.id)}
       />
 
       <AddTimelineDialog
@@ -267,7 +282,7 @@ export function TicketDetailClient({
         onOpenChange={setShowTimelineDialog}
         ticketId={ticket.id}
         canSetNextAction={permissions.canSetNextAction}
-        onSuccess={refreshData}
+        onSuccess={() => invalidateTicket(queryClient, ticket.id)}
       />
 
       <AddAttachmentDialog
@@ -275,7 +290,7 @@ export function TicketDetailClient({
         onOpenChange={setShowAttachmentDialog}
         ticketId={ticket.id}
         canAttachCanhoto={permissions.canAttachCanhoto}
-        onSuccess={refreshData}
+        onSuccess={() => invalidateTicket(queryClient, ticket.id)}
       />
 
       <SetSupplierDialog
@@ -283,7 +298,7 @@ export function TicketDetailClient({
         onOpenChange={setShowSupplierDialog}
         ticketId={ticket.id}
         suppliers={suppliers}
-        onSuccess={refreshData}
+        onSuccess={() => invalidateTicket(queryClient, ticket.id)}
       />
 
       <EditTicketDialog
