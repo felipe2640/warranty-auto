@@ -36,6 +36,49 @@ UI (App Router / Client)
 ### Search Tokens
 - `lib/search.ts` gera tokens normalizados para `array-contains`.
 
+## React Query (client)
+- Provider global em `app/providers.tsx` com defaults mobile-friendly:
+  - `staleTime: 60s`
+  - `retry: 1`
+  - `refetchOnWindowFocus: false`
+- O `QueryClientProvider` envolve a árvore no root layout (`app/layout.tsx`).
+
+### Uso nos tickets (exemplos)
+```tsx
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+
+// Buscar ticket por ID (ex.: /api/tickets/[id])
+const ticketQuery = useQuery({
+  queryKey: ["tickets", ticketId],
+  queryFn: async () => {
+    const response = await fetch(`/api/tickets/${ticketId}`)
+    if (!response.ok) {
+      throw new Error("Erro ao carregar ticket")
+    }
+    return response.json()
+  },
+})
+
+// Atualizar status do ticket (ex.: /api/tickets/[id]/status)
+const queryClient = useQueryClient()
+const updateStatus = useMutation({
+  mutationFn: async (payload: { status: string }) => {
+    const response = await fetch(`/api/tickets/${ticketId}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+      throw new Error("Erro ao atualizar status")
+    }
+    return response.json()
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["tickets", ticketId] })
+  },
+})
+```
+
 ## Evitar client importar server-only
 - Tipos compartilhados ficam em `lib/types/*`.
 - Client components não importam `lib/services/*` diretamente.
