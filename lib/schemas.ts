@@ -386,7 +386,7 @@ export const UpdateTicketDetailsSchema = z.object({
 export type UpdateTicketDetailsInput = z.infer<typeof UpdateTicketDetailsSchema>
 
 export const userCreateSchema = z.object({
-  email: z.string().email(),
+  username: z.string().min(3, "Nome de usuário deve ter pelo menos 3 caracteres"),
   password: z.string().min(6),
   name: z.string().min(1),
   role: RoleEnum,

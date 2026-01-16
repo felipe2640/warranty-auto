@@ -134,6 +134,10 @@ export async function updateAdminUser(options: {
     await getAdminAuth().updateUser(options.userId, { displayName: options.updates.name as string })
   }
 
+  if (options.updates.email) {
+    await getAdminAuth().updateUser(options.userId, { email: options.updates.email as string })
+  }
+
   if (options.updates.role) {
     await getAdminAuth().setCustomUserClaims(options.userId, {
       tenantId: options.tenantId,

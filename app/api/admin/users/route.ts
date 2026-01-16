@@ -2,7 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/session"
 import { userCreateSchema } from "@/lib/schemas"
 import { ADMIN_ROLE } from "@/lib/roles"
-import { createAdminUser, listAdminUsers } from "@/lib/services/adminService"
+import { formatTenantEmail } from "@/lib/auth/identifier"
+import { createAdminUser, fetchTenantSettings, listAdminUsers } from "@/lib/services/adminService"
 
 export async function GET() {
   try {
@@ -33,7 +34,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: validation.error.errors[0].message }, { status: 400 })
     }
 
-    const { email, password, name, role, storeId } = validation.data
+    const { username, password, name, role, storeId } = validation.data
+    const tenantSettings = await fetchTenantSettings(session.tenantId)
+    if (!tenantSettings) {
+      return NextResponse.json({ error: "Tenant não encontrado" }, { status: 404 })
+    }
+
+    const email = formatTenantEmail(username, tenantSettings.slug)
     const result = await createAdminUser({
       tenantId: session.tenantId,
       email,

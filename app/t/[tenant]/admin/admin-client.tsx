@@ -239,7 +239,7 @@ export function AdminClient({
             </TabsContent>
 
             <TabsContent value="users">
-              <UsersTab users={users} stores={stores} onRefresh={handleRefresh} />
+              <UsersTab users={users} stores={stores} tenant={tenant} onRefresh={handleRefresh} />
             </TabsContent>
 
             <TabsContent value="stores">
