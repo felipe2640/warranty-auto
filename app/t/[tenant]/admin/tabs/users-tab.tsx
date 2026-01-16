@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -38,6 +39,8 @@ export function UsersTab({ users, stores, tenant, onRefresh }: UsersTabProps) {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resetLink, setResetLink] = useState<string | null>(null)
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
 
   // Form state
   const [username, setUsername] = useState("")
@@ -127,10 +130,14 @@ export function UsersTab({ users, stores, tenant, onRefresh }: UsersTabProps) {
       const res = await fetch(`/api/admin/users/${userId}/reset-password`, { method: "POST" })
       const data = await res.json()
       if (data.resetLink) {
-        alert(`Link de reset: ${data.resetLink}`)
+        setResetLink(data.resetLink)
+        setIsResetDialogOpen(true)
+      } else {
+        setError("Não foi possível gerar o link de reset")
       }
     } catch (error) {
       console.error("[v0] Error resetting password:", error)
+      setError("Erro ao gerar link de reset")
     }
   }
 
@@ -156,9 +163,20 @@ export function UsersTab({ users, stores, tenant, onRefresh }: UsersTabProps) {
 
   const needsEmailNormalization = (email: string) => !email.toLowerCase().endsWith(`@${tenant}.sys`)
 
+  const getUsernameFromEmail = (email: string) => email.split("@")[0]
+
   const getStoreName = (storeId?: string) => {
     if (!storeId) return "—"
     return stores.find((s) => s.id === storeId)?.name || storeId
+  }
+
+  const handleCopyResetLink = async () => {
+    if (!resetLink) return
+    try {
+      await navigator.clipboard.writeText(resetLink)
+    } catch (copyError) {
+      console.error("[v0] Error copying reset link:", copyError)
+    }
   }
 
   return (
@@ -181,7 +199,7 @@ export function UsersTab({ users, stores, tenant, onRefresh }: UsersTabProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
+                  <TableHead>Usuário</TableHead>
                   <TableHead>Papel</TableHead>
                   <TableHead>Loja Padrão</TableHead>
                   <TableHead>Status</TableHead>
@@ -192,7 +210,7 @@ export function UsersTab({ users, stores, tenant, onRefresh }: UsersTabProps) {
                 {users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{getUsernameFromEmail(user.email)}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{ROLES.find((r) => r.value === user.role)?.label || user.role}</Badge>
                     </TableCell>
@@ -252,7 +270,7 @@ export function UsersTab({ users, stores, tenant, onRefresh }: UsersTabProps) {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-medium">{user.name}</p>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
+                      <p className="text-sm text-muted-foreground">{getUsernameFromEmail(user.email)}</p>
                       <div className="flex items-center gap-2 mt-2">
                         <Badge variant="outline" className="text-xs">
                           {ROLES.find((r) => r.value === user.role)?.label || user.role}
@@ -408,6 +426,27 @@ export function UsersTab({ users, stores, tenant, onRefresh }: UsersTabProps) {
           </>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Link de reset de senha</DialogTitle>
+            <DialogDescription>Copie o link abaixo e envie para a pessoa.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Link</Label>
+            <Input value={resetLink ?? ""} readOnly />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetDialogOpen(false)}>
+              Fechar
+            </Button>
+            <Button onClick={handleCopyResetLink} disabled={!resetLink}>
+              Copiar link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
