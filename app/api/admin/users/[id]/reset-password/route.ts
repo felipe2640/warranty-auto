@@ -25,8 +25,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: result.error }, { status: 400 })
     }
 
-    const separator = result.resetLink.includes("?") ? "&" : "?"
-    const localizedLink = `${result.resetLink}${separator}lang=pt-br`
+    const url = new URL(result.resetLink)
+    url.searchParams.set("lang", "pt-br")
+    const localizedLink = url.toString()
     return NextResponse.json({ resetLink: localizedLink })
   } catch (error) {
     console.error("Error resetting password:", error)
