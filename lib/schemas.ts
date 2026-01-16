@@ -32,7 +32,7 @@ export const STATUS_ORDER: Status[] = [
 export const TimelineTypeEnum = z.enum(["OBS", "LIGACAO", "EMAIL", "PRAZO", "STATUS_CHANGE", "DOCUMENTO"])
 export type TimelineType = z.infer<typeof TimelineTypeEnum>
 
-export const TimelineNextActionRequiredTypes = ["PRAZO", "LIGACAO", "EMAIL"] as const
+export const TimelineNextActionRequiredTypes = ["PRAZO"] as const
 export type TimelineNextActionRequiredType = (typeof TimelineNextActionRequiredTypes)[number]
 
 const dateOnlySchema = z.preprocess((value) => {
@@ -149,6 +149,12 @@ export const TimelineEntrySchema = z.object({
   userName: z.string(),
   nextActionAt: dateOnlySchema.optional(),
   nextActionNote: z.string().optional(),
+  attachmentId: z.string().optional(),
+  attachmentDriveFileId: z.string().optional(),
+  attachmentName: z.string().optional(),
+  attachmentCategory: AttachmentCategoryEnum.optional(),
+  attachmentMimeType: z.string().optional(),
+  attachmentSize: z.number().optional(),
   createdAt: z.date(),
 })
 export type TimelineEntry = z.infer<typeof TimelineEntrySchema>
@@ -417,6 +423,7 @@ export const TimelineFormSchema = z
     type: TimelineTypeEnum,
     text: z.string().min(1, "Texto é obrigatório"),
     setNextAction: z.boolean().default(false),
+    clearNextAction: z.boolean().optional(),
     nextActionAt: dateOnlySchema.optional(),
     nextActionNote: z.string().optional(),
   })

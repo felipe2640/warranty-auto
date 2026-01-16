@@ -22,6 +22,7 @@ import type { Ticket, TimelineEntry, Attachment, AuditEntry, Supplier, Role, Sta
 import type { NextTransitionChecklist, StageSummary } from "@/lib/types/warranty"
 import { ArrowLeft, ChevronRight, Plus, Paperclip, RotateCcw, AlertTriangle, Calendar, Pencil } from "lucide-react"
 import { todayDateOnly } from "@/lib/date"
+import { useInvalidateTicket, useTicket, type TicketDetailResponse } from "@/hooks/use-ticket"
 
 interface TicketDetailClientProps {
   tenant: string
@@ -31,7 +32,7 @@ interface TicketDetailClientProps {
   audit: AuditEntry[]
   suppliers: Supplier[]
   stores: Store[]
-  tenantPolicies?: TenantSettings["policies"] | null
+  tenantSettings?: TenantSettings | null
   userRole: Role
   userId: string
   userName: string
@@ -45,9 +46,9 @@ export function TicketDetailClient({
   timeline: initialTimeline,
   attachments: initialAttachments,
   audit: initialAudit,
-  suppliers,
-  stores,
-  tenantPolicies,
+  suppliers: initialSuppliers,
+  stores: initialStores,
+  tenantSettings: initialTenantSettings,
   userRole,
   userId,
   userName,
@@ -56,12 +57,33 @@ export function TicketDetailClient({
 }: TicketDetailClientProps) {
   const router = useRouter()
   const permissions = getUserPermissions(userRole)
+  const invalidateTicket = useInvalidateTicket()
 
-  const [ticket, setTicket] = useState(initialTicket)
-  const [timeline, setTimeline] = useState(initialTimeline)
-  const [attachments, setAttachments] = useState(initialAttachments)
-  const [transitionChecklist, setTransitionChecklist] = useState(nextTransitionChecklist)
-  const [stageSummary, setStageSummary] = useState(stageSummaryMap)
+  const initialData: TicketDetailResponse = {
+    ticket: initialTicket,
+    timeline: initialTimeline,
+    attachments: initialAttachments,
+    audit: initialAudit,
+    suppliers: initialSuppliers,
+    stores: initialStores,
+    tenantSettings: initialTenantSettings,
+    nextTransitionChecklist,
+    stageSummaryMap,
+  }
+
+  const { data } = useTicket(initialTicket.id, initialData)
+  const detail = data ?? initialData
+  const {
+    ticket,
+    timeline,
+    attachments,
+    audit,
+    suppliers,
+    stores,
+    tenantSettings,
+    nextTransitionChecklist: transitionChecklist,
+    stageSummaryMap: stageSummary,
+  } = detail
 
   const [showAdvanceDialog, setShowAdvanceDialog] = useState(false)
   const [showRevertDialog, setShowRevertDialog] = useState(false)
@@ -70,6 +92,7 @@ export function TicketDetailClient({
   const [showSupplierDialog, setShowSupplierDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
 
+  const tenantPolicies = tenantSettings?.policies ?? null
   const allowStoreChange = tenantPolicies ? !tenantPolicies.recebedorOnlyOwnStore : true
   const canEditCustomer = userRole === "ADMIN" || userRole === "RECEBEDOR"
   const canEditPiece = userRole === "ADMIN" || userRole === "RECEBEDOR" || userRole === "INTERNO"
@@ -85,29 +108,12 @@ export function TicketDetailClient({
   const isOverdue = ticket.dueDate && ticket.dueDate < today && ticket.status !== "ENCERRADO"
   const hasNextAction = ticket.nextActionAt && ticket.nextActionAt <= today
 
-  const refreshData = async () => {
-    const response = await fetch(`/api/tickets/${ticket.id}`)
-    if (response.ok) {
-      const data = await response.json()
-      setTicket(data.ticket)
-      setTimeline(data.timeline)
-      setAttachments(data.attachments)
-      setTransitionChecklist(data.nextTransitionChecklist)
-      setStageSummary(data.stageSummaryMap)
-    }
+  const handleInvalidate = () => {
+    invalidateTicket(ticket.id)
   }
 
-  const handleTicketUpdated = (updatedTicket: Ticket & { storeName?: string; supplierName?: string }, timelineEntry?: TimelineEntry) => {
-    setTicket((prev) => ({
-      ...prev,
-      ...updatedTicket,
-      storeName: updatedTicket.storeName ?? prev.storeName,
-      supplierName: updatedTicket.supplierName ?? prev.supplierName,
-    }))
-
-    if (timelineEntry) {
-      setTimeline((prev) => [timelineEntry, ...prev])
-    }
+  const handleUpdated = (_ticket: Ticket & { storeName?: string; supplierName?: string }, _timelineEntry?: TimelineEntry) => {
+    handleInvalidate()
   }
 
   const formatShortId = (id: string) => {
@@ -238,7 +244,7 @@ export function TicketDetailClient({
 
         {permissions.canSeeAudit && (
           <TabsContent value="auditoria" className="mt-4">
-            <TicketAuditTab audit={initialAudit} />
+            <TicketAuditTab audit={audit} />
           </TabsContent>
         )}
       </Tabs>
@@ -249,7 +255,8 @@ export function TicketDetailClient({
         onOpenChange={setShowAdvanceDialog}
         ticket={ticket}
         suppliers={suppliers}
-        onSuccess={refreshData}
+        timeline={timeline}
+        onSuccess={handleInvalidate}
         checklist={transitionChecklist}
         onRequestSupplier={() => setShowSupplierDialog(true)}
         onRequestAttachment={() => setShowAttachmentDialog(true)}
@@ -259,7 +266,7 @@ export function TicketDetailClient({
         open={showRevertDialog}
         onOpenChange={setShowRevertDialog}
         ticket={ticket}
-        onSuccess={refreshData}
+        onSuccess={handleInvalidate}
       />
 
       <AddTimelineDialog
@@ -267,7 +274,8 @@ export function TicketDetailClient({
         onOpenChange={setShowTimelineDialog}
         ticketId={ticket.id}
         canSetNextAction={permissions.canSetNextAction}
-        onSuccess={refreshData}
+        canAttachCanhoto={permissions.canAttachCanhoto}
+        onSuccess={handleInvalidate}
       />
 
       <AddAttachmentDialog
@@ -275,7 +283,7 @@ export function TicketDetailClient({
         onOpenChange={setShowAttachmentDialog}
         ticketId={ticket.id}
         canAttachCanhoto={permissions.canAttachCanhoto}
-        onSuccess={refreshData}
+        onSuccess={handleInvalidate}
       />
 
       <SetSupplierDialog
@@ -283,7 +291,7 @@ export function TicketDetailClient({
         onOpenChange={setShowSupplierDialog}
         ticketId={ticket.id}
         suppliers={suppliers}
-        onSuccess={refreshData}
+        onSuccess={handleInvalidate}
       />
 
       <EditTicketDialog
@@ -296,7 +304,7 @@ export function TicketDetailClient({
         canEditPiece={canEditPiece}
         canEditStore={canEditStore}
         canEditSupplier={canEditSupplier}
-        onUpdated={handleTicketUpdated}
+        onUpdated={handleUpdated}
       />
     </div>
   )

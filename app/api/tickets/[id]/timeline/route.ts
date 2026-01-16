@@ -20,18 +20,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: parsed.error.errors[0]?.message || "Dados inválidos" }, { status: 400 })
     }
 
-    const { type, text, setNextAction, nextActionAt, nextActionNote } = parsed.data
+    const { type, text, setNextAction, clearNextAction, nextActionAt, nextActionNote } = parsed.data
 
     const permissions = getUserPermissions(session.role)
     const requiresNextAction = TimelineNextActionRequiredTypes.includes(type as (typeof TimelineNextActionRequiredTypes)[number])
     const shouldSetNextAction = requiresNextAction || setNextAction
+    const shouldClearNextAction = !shouldSetNextAction && clearNextAction
 
     if (!permissions.canAddTimeline) {
       return NextResponse.json({ error: "Permissão negada" }, { status: 403 })
     }
 
     // Check permission for setting next action
-    if (shouldSetNextAction && !permissions.canSetNextAction) {
+    if ((shouldSetNextAction || shouldClearNextAction) && !permissions.canSetNextAction) {
       return NextResponse.json({ error: "Permissão negada para definir próxima ação" }, { status: 403 })
     }
 
@@ -41,6 +42,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const trimmedNote = nextActionNote?.trim()
+    const updateNextAction = shouldSetNextAction && nextActionDate
+      ? {
+        nextActionAt: nextActionDate,
+        nextActionNote: trimmedNote,
+      }
+      : shouldClearNextAction
+        ? { nextActionAt: null, nextActionNote: null }
+        : undefined
 
     const entryId = await addTicketTimelineEntry({
       ticketId: id,
@@ -53,12 +62,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         nextActionAt: nextActionDate,
         nextActionNote: shouldSetNextAction ? trimmedNote : undefined,
       },
-      updateNextAction: shouldSetNextAction && nextActionDate
-        ? {
-          nextActionAt: nextActionDate,
-          nextActionNote: trimmedNote,
-        }
-        : undefined,
+      updateNextAction,
     })
 
     if (!entryId) {

@@ -264,11 +264,30 @@ export async function revertTicketStatus(
 
   const now = new Date()
 
-  await getAdminDb().collection(TICKETS_COLLECTION).doc(ticketId).update({
+  const updateData: Record<string, unknown> = {
     status: targetStatus,
     isClosed: targetStatus === "ENCERRADO",
     updatedAt: now,
-  })
+  }
+
+  if (targetStatus !== "ENCERRADO") {
+    updateData.closedAt = null
+  }
+
+  const cobrancaIndex = STATUS_ORDER.indexOf("COBRANCA_ACOMPANHAMENTO")
+  const resolucaoIndex = STATUS_ORDER.indexOf("RESOLUCAO")
+
+  // Clear fields from later stages so they can be filled again after a revert.
+  if (targetIndex <= cobrancaIndex) {
+    updateData.supplierResponse = null
+  }
+
+  if (targetIndex <= resolucaoIndex) {
+    updateData.resolutionResult = null
+    updateData.resolutionNotes = null
+  }
+
+  await getAdminDb().collection(TICKETS_COLLECTION).doc(ticketId).update(updateData)
 
   // Create audit entry for revert
   await getAdminDb().collection(TICKETS_COLLECTION).doc(ticketId).collection(AUDIT_COLLECTION).add({
@@ -447,6 +466,12 @@ export async function getTicketTimeline(ticketId: string): Promise<TimelineEntry
       userName: data.userName,
       nextActionAt: toDateOnly(data.nextActionAt),
       nextActionNote: data.nextActionNote,
+      attachmentId: data.attachmentId,
+      attachmentDriveFileId: data.attachmentDriveFileId,
+      attachmentName: data.attachmentName,
+      attachmentCategory: data.attachmentCategory,
+      attachmentMimeType: data.attachmentMimeType,
+      attachmentSize: data.attachmentSize,
       createdAt: toDate(data.createdAt)!,
     }
   })
@@ -455,14 +480,49 @@ export async function getTicketTimeline(ticketId: string): Promise<TimelineEntry
 export async function addTimelineEntry(
   ticketId: string,
   entry: Omit<TimelineEntry, "id" | "ticketId" | "createdAt">,
-  updateNextAction?: { nextActionAt: string; nextActionNote?: string },
+  updateNextAction?: { nextActionAt: string | null; nextActionNote?: string | null },
 ): Promise<string> {
   const now = new Date()
 
-  const entryData = {
-    ...entry,
+  const entryData: Record<string, unknown> = {
     ticketId,
+    type: entry.type,
+    text: entry.text,
+    userId: entry.userId,
+    userName: entry.userName,
     createdAt: now,
+  }
+
+  if (entry.nextActionAt !== undefined) {
+    entryData.nextActionAt = entry.nextActionAt
+  }
+
+  if (entry.nextActionNote !== undefined) {
+    entryData.nextActionNote = entry.nextActionNote
+  }
+
+  if (entry.attachmentId !== undefined) {
+    entryData.attachmentId = entry.attachmentId
+  }
+
+  if (entry.attachmentDriveFileId !== undefined) {
+    entryData.attachmentDriveFileId = entry.attachmentDriveFileId
+  }
+
+  if (entry.attachmentName !== undefined) {
+    entryData.attachmentName = entry.attachmentName
+  }
+
+  if (entry.attachmentCategory !== undefined) {
+    entryData.attachmentCategory = entry.attachmentCategory
+  }
+
+  if (entry.attachmentMimeType !== undefined) {
+    entryData.attachmentMimeType = entry.attachmentMimeType
+  }
+
+  if (entry.attachmentSize !== undefined) {
+    entryData.attachmentSize = entry.attachmentSize
   }
 
   const docRef = await getAdminDb()
@@ -508,6 +568,29 @@ export async function getTicketAttachments(ticketId: string): Promise<Attachment
       uploadedAt: toDate(data.uploadedAt)!,
     }
   })
+}
+
+export async function getTicketAttachmentById(ticketId: string, attachmentId: string): Promise<Attachment | null> {
+  const doc = await getAdminDb()
+    .collection(TICKETS_COLLECTION)
+    .doc(ticketId)
+    .collection(ATTACHMENTS_COLLECTION)
+    .doc(attachmentId)
+    .get()
+
+  if (!doc.exists) return null
+  const data = doc.data()!
+  return {
+    id: doc.id,
+    ticketId: data.ticketId,
+    category: data.category,
+    name: data.name,
+    mimeType: data.mimeType,
+    size: data.size,
+    driveFileId: data.driveFileId,
+    uploadedBy: data.uploadedBy,
+    uploadedAt: toDate(data.uploadedAt)!,
+  }
 }
 
 export async function addAttachment(

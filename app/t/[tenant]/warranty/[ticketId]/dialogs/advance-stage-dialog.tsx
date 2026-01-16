@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { StatusBadge } from "@/components/ui/status-badge"
-import type { Ticket, Supplier, Status } from "@/lib/schemas"
+import type { Ticket, Supplier, Status, TimelineEntry } from "@/lib/schemas"
 import type { NextTransitionChecklist, TransitionChecklistItem } from "@/lib/types/warranty"
+import { formatDateBR } from "@/lib/format"
 import { Loader2, AlertCircle, ChevronRight, Check, X } from "lucide-react"
 
 interface AdvanceStageDialogProps {
@@ -17,6 +18,7 @@ interface AdvanceStageDialogProps {
   onOpenChange: (open: boolean) => void
   ticket: Ticket
   suppliers: Supplier[]
+  timeline: TimelineEntry[]
   onSuccess: () => void
   checklist: NextTransitionChecklist
   onRequestSupplier: () => void
@@ -29,12 +31,22 @@ const RESOLUTION_OPTIONS = [
   { value: "NEGOU", label: "Negou" },
 ]
 const NOTE_MAX_LENGTH = 500
+const SUPPLIER_RESPONSE_TYPES = new Set(["DOCUMENTO", "EMAIL", "LIGACAO", "OBS"])
+const TIMELINE_TYPE_LABELS: Record<string, string> = {
+  OBS: "Observação",
+  LIGACAO: "Ligação",
+  EMAIL: "Email",
+  PRAZO: "Prazo",
+  STATUS_CHANGE: "Mudança de Status",
+  DOCUMENTO: "Documento",
+}
 
 export function AdvanceStageDialog({
   open,
   onOpenChange,
   ticket,
   suppliers,
+  timeline,
   onSuccess,
   checklist,
   onRequestSupplier,
@@ -44,10 +56,13 @@ export function AdvanceStageDialog({
   const [error, setError] = useState<string | null>(null)
   const [supplierId, setSupplierId] = useState<string>("")
   const [resolutionResult, setResolutionResult] = useState<string>("")
-  const [resolutionNotes, setResolutionNotes] = useState<string>("")
-  const [supplierResponse, setSupplierResponse] = useState<string>("")
+  const [resolutionNoteChoice, setResolutionNoteChoice] = useState<string>("manual")
+  const [resolutionNoteText, setResolutionNoteText] = useState<string>("")
+  const [supplierResponseChoice, setSupplierResponseChoice] = useState<string>("manual")
+  const [supplierResponseText, setSupplierResponseText] = useState<string>("")
   const [note, setNote] = useState<string>("")
   const supplierResponseRef = useRef<HTMLTextAreaElement>(null)
+  const supplierResponseSelectRef = useRef<HTMLButtonElement>(null)
   const resolutionRef = useRef<HTMLButtonElement>(null)
 
   const nextStatus = checklist.nextStatus
@@ -55,16 +70,86 @@ export function AdvanceStageDialog({
   const needsSupplier = checklistItems.some((item) => item.key === "supplierId" && !item.satisfied)
   const needsSupplierResponse = checklistItems.some((item) => item.key === "supplierResponse" && !item.satisfied)
   const needsResolution = checklistItems.some((item) => item.key === "resolutionResult" && !item.satisfied)
+  const showSupplierResponse = ticket.status === "COBRANCA_ACOMPANHAMENTO"
+  const showResolutionFields = ticket.status === "RESOLUCAO"
   const roleBlocked = !checklist.canAdvance && checklistItems.every((item) => item.satisfied)
   const unresolvedItems = checklistItems.filter(
     (item) => !item.satisfied && !["supplierId", "supplierResponse", "resolutionResult"].includes(item.key),
   )
+  const timelineResponseEntries = useMemo(
+    () => timeline.filter((entry) => SUPPLIER_RESPONSE_TYPES.has(entry.type)),
+    [timeline],
+  )
+  const timelineResponseMap = useMemo(
+    () => new Map(timelineResponseEntries.map((entry) => [entry.id, entry])),
+    [timelineResponseEntries],
+  )
+  const resolvedSupplierResponse = supplierResponseChoice.startsWith("timeline:")
+    ? supplierResponseChoice
+    : supplierResponseText.trim()
+  const resolvedResolutionNotes = resolutionNoteChoice.startsWith("timeline:")
+    ? resolutionNoteChoice
+    : resolutionNoteText.trim()
+  const hasSupplierResponse = !!resolvedSupplierResponse
   const canSubmit =
     !roleBlocked &&
     unresolvedItems.length === 0 &&
     (!needsSupplier || !!supplierId) &&
-    (!needsSupplierResponse || !!supplierResponse.trim()) &&
-    (!needsResolution || !!resolutionResult)
+    (!showSupplierResponse || hasSupplierResponse) &&
+    (!showResolutionFields || !!resolutionResult)
+
+  useEffect(() => {
+    if (!open) return
+
+    const currentResponse = ticket.supplierResponse?.trim()
+    if (!currentResponse) {
+      setSupplierResponseChoice("manual")
+      setSupplierResponseText("")
+    } else if (currentResponse.startsWith("timeline:")) {
+      const id = currentResponse.replace("timeline:", "")
+      if (timelineResponseMap.has(id)) {
+        setSupplierResponseChoice(currentResponse)
+        setSupplierResponseText("")
+      } else {
+        setSupplierResponseChoice("manual")
+        setSupplierResponseText(currentResponse)
+      }
+    } else if (timelineResponseMap.has(currentResponse)) {
+      setSupplierResponseChoice(`timeline:${currentResponse}`)
+      setSupplierResponseText("")
+    } else {
+      setSupplierResponseChoice("manual")
+      setSupplierResponseText(currentResponse)
+    }
+
+    const currentResolutionResult = ticket.resolutionResult?.toString() ?? ""
+    setResolutionResult(currentResolutionResult)
+
+    const currentResolutionNotes = ticket.resolutionNotes?.trim()
+    if (!currentResolutionNotes) {
+      setResolutionNoteChoice("manual")
+      setResolutionNoteText("")
+      return
+    }
+
+    if (currentResolutionNotes.startsWith("timeline:")) {
+      const id = currentResolutionNotes.replace("timeline:", "")
+      if (timelineResponseMap.has(id)) {
+        setResolutionNoteChoice(currentResolutionNotes)
+        setResolutionNoteText("")
+        return
+      }
+    }
+
+    if (timelineResponseMap.has(currentResolutionNotes)) {
+      setResolutionNoteChoice(`timeline:${currentResolutionNotes}`)
+      setResolutionNoteText("")
+      return
+    }
+
+    setResolutionNoteChoice("manual")
+    setResolutionNoteText(currentResolutionNotes)
+  }, [open, ticket.supplierResponse, ticket.resolutionResult, ticket.resolutionNotes, timelineResponseMap])
 
   const handleAdvance = async () => {
     setError(null)
@@ -83,23 +168,25 @@ export function AdvanceStageDialog({
         body.supplierId = supplierId
       }
 
-      if (needsResolution) {
+      if (showResolutionFields) {
         if (!resolutionResult) {
           setError("Resultado é obrigatório")
           setIsSubmitting(false)
           return
         }
         body.resolutionResult = resolutionResult
-        body.resolutionNotes = resolutionNotes
+        if (resolvedResolutionNotes) {
+          body.resolutionNotes = resolvedResolutionNotes
+        }
       }
 
-      if (needsSupplierResponse) {
-        if (!supplierResponse.trim()) {
+      if (showSupplierResponse) {
+        if (!hasSupplierResponse) {
           setError("Resposta do fornecedor é obrigatória")
           setIsSubmitting(false)
           return
         }
-        body.supplierResponse = supplierResponse
+        body.supplierResponse = resolvedSupplierResponse
       }
 
       if (note.trim()) {
@@ -132,8 +219,10 @@ export function AdvanceStageDialog({
     setError(null)
     setSupplierId("")
     setResolutionResult("")
-    setResolutionNotes("")
-    setSupplierResponse("")
+    setResolutionNoteChoice("manual")
+    setResolutionNoteText("")
+    setSupplierResponseChoice("manual")
+    setSupplierResponseText("")
     setNote("")
   }
 
@@ -149,7 +238,7 @@ export function AdvanceStageDialog({
       return
     }
     if (item.cta?.type === "supplierResponse") {
-      supplierResponseRef.current?.focus()
+      supplierResponseSelectRef.current?.focus()
       return
     }
     if (item.cta?.type === "resolution") {
@@ -214,23 +303,51 @@ export function AdvanceStageDialog({
               </div>
             )}
 
-            {needsSupplierResponse && (
+            {showSupplierResponse && (
               <div className="space-y-2">
-                <Label>Resposta do fornecedor *</Label>
-                <Textarea
-                  ref={supplierResponseRef}
-                  value={supplierResponse}
-                  onChange={(e) => setSupplierResponse(e.target.value)}
-                  placeholder="Descreva a resposta do fornecedor..."
-                  rows={3}
-                />
+                <Label>Resposta do fornecedor {needsSupplierResponse ? "*" : ""}</Label>
+                <Select
+                  value={supplierResponseChoice}
+                  onValueChange={(value) => {
+                    setSupplierResponseChoice(value)
+                    if (value !== "manual") {
+                      setSupplierResponseText("")
+                    }
+                  }}
+                >
+                  <SelectTrigger ref={supplierResponseSelectRef}>
+                    <SelectValue placeholder="Selecione um registro da timeline" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">Digitar resposta manual</SelectItem>
+                    {timelineResponseEntries.map((entry) => {
+                      const label = TIMELINE_TYPE_LABELS[entry.type] ?? entry.type
+                      const shortText = entry.text.length > 60 ? `${entry.text.slice(0, 60)}…` : entry.text
+                      const dateLabel = formatDateBR(entry.createdAt)
+                      return (
+                        <SelectItem key={entry.id} value={`timeline:${entry.id}`}>
+                          {label} • {dateLabel} • {shortText}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+                {supplierResponseChoice === "manual" && (
+                  <Textarea
+                    ref={supplierResponseRef}
+                    value={supplierResponseText}
+                    onChange={(e) => setSupplierResponseText(e.target.value)}
+                    placeholder="Descreva a resposta do fornecedor..."
+                    rows={3}
+                  />
+                )}
               </div>
             )}
 
-            {needsResolution && (
+            {showResolutionFields && (
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label>Resultado *</Label>
+                  <Label>Resultado {needsResolution ? "*" : ""}</Label>
                   <Select value={resolutionResult} onValueChange={setResolutionResult}>
                     <SelectTrigger ref={resolutionRef}>
                       <SelectValue placeholder="Selecione o resultado" />
@@ -246,13 +363,41 @@ export function AdvanceStageDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Notas da resolução</Label>
-                  <Textarea
-                    value={resolutionNotes}
-                    onChange={(e) => setResolutionNotes(e.target.value)}
-                    placeholder="Observações adicionais..."
-                    rows={3}
-                  />
+                  <Label>Registro da solução (opcional)</Label>
+                  <Select
+                    value={resolutionNoteChoice}
+                    onValueChange={(value) => {
+                      setResolutionNoteChoice(value)
+                      if (value !== "manual") {
+                        setResolutionNoteText("")
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um registro da timeline" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">Digitar observação manual</SelectItem>
+                      {timelineResponseEntries.map((entry) => {
+                        const label = TIMELINE_TYPE_LABELS[entry.type] ?? entry.type
+                        const shortText = entry.text.length > 60 ? `${entry.text.slice(0, 60)}…` : entry.text
+                        const dateLabel = formatDateBR(entry.createdAt)
+                        return (
+                          <SelectItem key={entry.id} value={`timeline:${entry.id}`}>
+                            {label} • {dateLabel} • {shortText}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                  {resolutionNoteChoice === "manual" && (
+                    <Textarea
+                      value={resolutionNoteText}
+                      onChange={(e) => setResolutionNoteText(e.target.value)}
+                      placeholder="Observações adicionais..."
+                      rows={3}
+                    />
+                  )}
                 </div>
               </div>
             )}

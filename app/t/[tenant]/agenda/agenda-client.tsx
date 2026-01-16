@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { AppLayout } from "@/components/app-layout"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -149,8 +150,10 @@ export function AgendaClient({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [contactType, setContactType] = useState<"LIGACAO" | "EMAIL">("LIGACAO")
   const [contactNotes, setContactNotes] = useState("")
+  const [setNextAction, setSetNextAction] = useState(false)
   const [nextActionDate, setNextActionDate] = useState("")
   const [nextActionNote, setNextActionNote] = useState("")
+  const [contactError, setContactError] = useState<string | null>(null)
 
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState(() => new Date())
@@ -219,32 +222,59 @@ export function AgendaClient({
     setContactDialog({ open: true, ticket })
     setContactType("LIGACAO")
     setContactNotes("")
+    setSetNextAction(false)
     setNextActionDate(addDaysDateOnly(todayDateOnly(), 3))
     setNextActionNote("")
+    setContactError(null)
   }
 
   const handleContactSubmit = async () => {
     if (!contactDialog.ticket) return
 
     setIsSubmitting(true)
+    setContactError(null)
+
+    if (setNextAction && !nextActionDate) {
+      setContactError("Data da próxima ação é obrigatória")
+      setIsSubmitting(false)
+      return
+    }
+
     try {
+      const notes = contactNotes.trim()
+      const nextNote = nextActionNote.trim()
+      const payload: Record<string, unknown> = {
+        type: contactType,
+        text: notes || `Contato realizado via ${contactType === "LIGACAO" ? "ligação" : "email"}`,
+        setNextAction,
+        clearNextAction: !setNextAction,
+      }
+
+      if (setNextAction) {
+        payload.nextActionAt = nextActionDate
+        if (nextNote) {
+          payload.nextActionNote = nextNote
+        }
+      }
+
       // Add timeline entry
-      await fetch(`/api/tickets/${contactDialog.ticket.id}/timeline`, {
+      const response = await fetch(`/api/tickets/${contactDialog.ticket.id}/timeline`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: contactType,
-          text: contactNotes || `Contato realizado via ${contactType === "LIGACAO" ? "ligação" : "email"}`,
-          setNextAction: true,
-          nextActionAt: nextActionDate,
-          nextActionNote: nextActionNote,
-        }),
+        body: JSON.stringify(payload),
       })
+
+      const data = await response.json()
+      if (!response.ok) {
+        setContactError(data.error || "Erro ao salvar contato")
+        return
+      }
 
       setContactDialog({ open: false, ticket: null })
       router.refresh()
     } catch (error) {
       console.error("[v0] Error logging contact:", error)
+      setContactError("Erro ao salvar contato")
     } finally {
       setIsSubmitting(false)
     }
@@ -814,7 +844,7 @@ export function AgendaClient({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Marcar Contato Feito</DialogTitle>
-            <DialogDescription>Registre o contato realizado e defina a próxima ação.</DialogDescription>
+            <DialogDescription>Registre o contato realizado e, se necessário, defina a próxima ação.</DialogDescription>
           </DialogHeader>
 
           {contactDialog.ticket && (
@@ -850,20 +880,33 @@ export function AgendaClient({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Próxima Ação (Data)</Label>
-                  <Input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Nota da Próxima Ação</Label>
-                  <Input
-                    value={nextActionNote}
-                    onChange={(e) => setNextActionNote(e.target.value)}
-                    placeholder="Ex: Retornar ligação"
-                  />
-                </div>
+              <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                <Label htmlFor="set-next-action">Definir próxima ação (opcional)</Label>
+                <Switch id="set-next-action" checked={setNextAction} onCheckedChange={setSetNextAction} />
               </div>
+              <p className="text-xs text-muted-foreground">Se não definir, a ação sai da agenda.</p>
+
+              {setNextAction && (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Próxima Ação (Data)</Label>
+                    <Input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} />
+                    {!nextActionDate && (
+                      <p className="text-sm text-destructive">Data da próxima ação é obrigatória</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Nota da Próxima Ação</Label>
+                    <Input
+                      value={nextActionNote}
+                      onChange={(e) => setNextActionNote(e.target.value)}
+                      placeholder="Ex: Retornar ligação"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {contactError && <p className="text-sm text-destructive">{contactError}</p>}
             </div>
           )}
 
@@ -871,7 +914,7 @@ export function AgendaClient({
             <Button variant="outline" onClick={() => setContactDialog({ open: false, ticket: null })}>
               Cancelar
             </Button>
-            <Button onClick={handleContactSubmit} disabled={isSubmitting}>
+            <Button onClick={handleContactSubmit} disabled={isSubmitting || (setNextAction && !nextActionDate)}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

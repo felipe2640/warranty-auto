@@ -838,7 +838,7 @@ export async function addTicketTimelineEntry(options: {
   ticketId: string
   tenantId: string
   entry: Omit<TimelineEntry, "id" | "ticketId" | "createdAt">
-  updateNextAction?: { nextActionAt: string; nextActionNote?: string }
+  updateNextAction?: { nextActionAt: string | null; nextActionNote?: string | null }
 }) {
   const ticket = await getTicketById(options.ticketId)
   if (!ticket || ticket.tenantId !== options.tenantId) {
