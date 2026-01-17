@@ -5,18 +5,27 @@ import type React from "react"
 import { memo, useRef, useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Eraser, Check } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface SignaturePadProps {
   onSave: (dataUrl: string) => void
   onClear: () => void
   disabled?: boolean
+  width?: number
+  height?: number
+  maxExportWidth?: number
+  maxExportHeight?: number
+  className?: string
+  canvasClassName?: string
 }
 
-const MAX_SIGNATURE_WIDTH = 320
-const MAX_SIGNATURE_HEIGHT = 160
+const DEFAULT_SIGNATURE_WIDTH = 400
+const DEFAULT_SIGNATURE_HEIGHT = 200
+const DEFAULT_EXPORT_MAX_WIDTH = 320
+const DEFAULT_EXPORT_MAX_HEIGHT = 160
 
-function exportSignatureDataUrl(canvas: HTMLCanvasElement) {
-  const scale = Math.min(1, MAX_SIGNATURE_WIDTH / canvas.width, MAX_SIGNATURE_HEIGHT / canvas.height)
+function exportSignatureDataUrl(canvas: HTMLCanvasElement, maxWidth: number, maxHeight: number) {
+  const scale = Math.min(1, maxWidth / canvas.width, maxHeight / canvas.height)
   const targetWidth = Math.max(1, Math.round(canvas.width * scale))
   const targetHeight = Math.max(1, Math.round(canvas.height * scale))
 
@@ -36,7 +45,17 @@ function exportSignatureDataUrl(canvas: HTMLCanvasElement) {
   return output.toDataURL("image/png")
 }
 
-function SignaturePadComponent({ onSave, onClear, disabled }: SignaturePadProps) {
+function SignaturePadComponent({
+  onSave,
+  onClear,
+  disabled,
+  width = DEFAULT_SIGNATURE_WIDTH,
+  height = DEFAULT_SIGNATURE_HEIGHT,
+  maxExportWidth = DEFAULT_EXPORT_MAX_WIDTH,
+  maxExportHeight = DEFAULT_EXPORT_MAX_HEIGHT,
+  className,
+  canvasClassName,
+}: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [hasSignature, setHasSignature] = useState(false)
@@ -45,7 +64,7 @@ function SignaturePadComponent({ onSave, onClear, disabled }: SignaturePadProps)
     const canvas = canvasRef.current
     if (!canvas) return null
     return canvas.getContext("2d")
-  }, [])
+  }, [height, width])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -122,18 +141,18 @@ function SignaturePadComponent({ onSave, onClear, disabled }: SignaturePadProps)
     const canvas = canvasRef.current
     if (!canvas || !hasSignature) return
 
-    const dataUrl = exportSignatureDataUrl(canvas)
+    const dataUrl = exportSignatureDataUrl(canvas, maxExportWidth, maxExportHeight)
     onSave(dataUrl)
   }
 
   return (
     <div className="space-y-3">
-      <div className="border border-border rounded-lg overflow-hidden bg-background">
+      <div className={cn("border border-border rounded-lg overflow-hidden bg-background", className)}>
         <canvas
           ref={canvasRef}
-          width={400}
-          height={200}
-          className="w-full touch-none"
+          width={width}
+          height={height}
+          className={cn("w-full touch-none", canvasClassName)}
           onPointerDown={startDrawing}
           onPointerMove={draw}
           onPointerUp={stopDrawing}

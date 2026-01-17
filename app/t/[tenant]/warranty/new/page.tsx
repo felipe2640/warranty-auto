@@ -1,7 +1,7 @@
 import { requireTenantSession } from "@/lib/session"
 import { redirect } from "next/navigation"
 import { getUserPermissions } from "@/lib/permissions"
-import { fetchStores, fetchTenantSettings } from "@/lib/services/adminService"
+import { fetchTenantSettings } from "@/lib/services/adminService"
 import { AppLayout } from "@/components/app-layout"
 import { NewTicketForm } from "./new-ticket-form"
 
@@ -19,9 +19,7 @@ export default async function NewTicketPage({ params }: NewTicketPageProps) {
     redirect(`/t/${tenant}/warranty`)
   }
 
-  const [stores, tenantSettings] = await Promise.all([fetchStores(tenantId), fetchTenantSettings(tenantId)])
-
-  const activeStores = stores.filter((s) => s.active)
+  const tenantSettings = await fetchTenantSettings(tenantId)
 
   // Check if Drive is configured
   const driveConfigured = !!tenantSettings?.driveRootFolderId
@@ -54,7 +52,7 @@ export default async function NewTicketPage({ params }: NewTicketPageProps) {
             </p>
           </div>
         ) : (
-          <NewTicketForm tenant={tenant} stores={activeStores} userStoreId={session.storeId} />
+          <NewTicketForm tenant={tenant} />
         )}
       </div>
     </AppLayout>

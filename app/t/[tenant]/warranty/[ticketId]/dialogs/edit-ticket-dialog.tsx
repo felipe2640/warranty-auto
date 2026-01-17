@@ -28,6 +28,7 @@ interface EditTicketDialogProps {
   suppliers: Supplier[]
   canEditCustomer: boolean
   canEditPiece: boolean
+  canEditInternal: boolean
   canEditStore: boolean
   canEditSupplier: boolean
   onUpdated: (ticket: Ticket & { storeName?: string; supplierName?: string }, timelineEntry?: TimelineEntry) => void
@@ -41,6 +42,7 @@ export function EditTicketDialog({
   suppliers,
   canEditCustomer,
   canEditPiece,
+  canEditInternal,
   canEditStore,
   canEditSupplier,
   onUpdated,
@@ -72,6 +74,11 @@ export function EditTicketDialog({
       cpfCnpj: ticket.cpfCnpj,
       celular: ticket.celular,
       isWhatsapp: ticket.isWhatsapp,
+      nfIda: ticket.nfIda,
+      nfRetorno: ticket.nfRetorno,
+      boletoComAbatimento: ticket.boletoComAbatimento,
+      remessa: ticket.remessa,
+      retorno: ticket.retorno,
       descricaoPeca: ticket.descricaoPeca,
       quantidade: ticket.quantidade,
       ref: ticket.ref,
@@ -79,6 +86,7 @@ export function EditTicketDialog({
       defeitoPeca: ticket.defeitoPeca,
       numeroVendaOuCfe: ticket.numeroVendaOuCfe,
       numeroVendaOuCfeFornecedor: ticket.numeroVendaOuCfeFornecedor,
+      dataIndoFornecedor: ticket.dataIndoFornecedor,
       obs: ticket.obs,
       storeId: ticket.storeId,
       supplierId: ticket.supplierId,
@@ -93,6 +101,11 @@ export function EditTicketDialog({
       cpfCnpj: ticket.cpfCnpj,
       celular: ticket.celular,
       isWhatsapp: ticket.isWhatsapp,
+      nfIda: ticket.nfIda,
+      nfRetorno: ticket.nfRetorno,
+      boletoComAbatimento: ticket.boletoComAbatimento,
+      remessa: ticket.remessa,
+      retorno: ticket.retorno,
       descricaoPeca: ticket.descricaoPeca,
       quantidade: ticket.quantidade,
       ref: ticket.ref,
@@ -100,6 +113,7 @@ export function EditTicketDialog({
       defeitoPeca: ticket.defeitoPeca,
       numeroVendaOuCfe: ticket.numeroVendaOuCfe,
       numeroVendaOuCfeFornecedor: ticket.numeroVendaOuCfeFornecedor,
+      dataIndoFornecedor: ticket.dataIndoFornecedor,
       obs: ticket.obs,
       storeId: ticket.storeId,
       supplierId: ticket.supplierId,
@@ -155,7 +169,7 @@ export function EditTicketDialog({
         </Alert>
       )}
 
-      <Accordion type="multiple" defaultValue={["cliente", "peca", "loja"]}>
+      <Accordion type="multiple" defaultValue={["cliente", "peca", "interno", "loja"]}>
         {canEditCustomer && (
           <AccordionItem value="cliente">
             <AccordionTrigger>Cliente</AccordionTrigger>
@@ -259,6 +273,57 @@ export function EditTicketDialog({
               <div className="space-y-2">
                 <Label>Observações</Label>
                 <Textarea {...register("obs")} rows={3} />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {canEditInternal && (
+          <AccordionItem value="interno">
+            <AccordionTrigger>Interno (NF e Logística)</AccordionTrigger>
+            <AccordionContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Preencha os dados de NF para liberar o avanço para Logística.
+              </p>
+
+              <div className="space-y-2">
+                <Label>NF Ida *</Label>
+                <Input {...register("nfIda")} />
+                {errors.nfIda && <p className="text-sm text-destructive">{errors.nfIda.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label>NF Retorno *</Label>
+                <Input {...register("nfRetorno")} />
+                {errors.nfRetorno && <p className="text-sm text-destructive">{errors.nfRetorno.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Boleto c/ Abatimento *</Label>
+                <Input {...register("boletoComAbatimento")} />
+                {errors.boletoComAbatimento && (
+                  <p className="text-sm text-destructive">{errors.boletoComAbatimento.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Remessa *</Label>
+                <Input {...register("remessa")} />
+                {errors.remessa && <p className="text-sm text-destructive">{errors.remessa.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Retorno *</Label>
+                <Input {...register("retorno")} />
+                {errors.retorno && <p className="text-sm text-destructive">{errors.retorno.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data indo fornecedor</Label>
+                <Input type="date" {...register("dataIndoFornecedor")} />
+                {errors.dataIndoFornecedor && (
+                  <p className="text-sm text-destructive">{errors.dataIndoFornecedor.message}</p>
+                )}
               </div>
             </AccordionContent>
           </AccordionItem>

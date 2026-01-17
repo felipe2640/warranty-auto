@@ -57,6 +57,7 @@ const PART_FIELDS = [
   "numeroVendaOuCfeFornecedor",
   "obs",
 ] as const
+const INTERNAL_FIELDS = ["nfIda", "nfRetorno", "boletoComAbatimento", "remessa", "retorno", "dataIndoFornecedor"] as const
 const STORE_FIELDS = ["storeId"] as const
 const SUPPLIER_FIELDS = ["supplierId"] as const
 
@@ -74,6 +75,12 @@ const EDIT_FIELD_LABELS: Record<string, string> = {
   numeroVendaOuCfe: "Número da venda/CFe",
   numeroVendaOuCfeFornecedor: "Número fornecedor",
   obs: "Observações",
+  nfIda: "NF Ida",
+  nfRetorno: "NF Retorno",
+  boletoComAbatimento: "Boleto c/ abatimento",
+  remessa: "Remessa",
+  retorno: "Retorno",
+  dataIndoFornecedor: "Data indo fornecedor",
   storeId: "Loja",
   supplierId: "Fornecedor",
 }
@@ -103,6 +110,19 @@ function buildTransitionChecklist(options: {
       label: "Fornecedor definido",
       satisfied,
       cta: satisfied ? undefined : { type: "supplier", label: "Definir fornecedor" },
+    })
+
+    const nfSatisfied = Boolean(
+      options.ticket.nfIda &&
+        options.ticket.nfRetorno &&
+        options.ticket.boletoComAbatimento &&
+        options.ticket.remessa &&
+        options.ticket.retorno,
+    )
+    items.push({
+      key: "nfFields",
+      label: "Dados da NF preenchidos (Ida, Retorno, Boleto, Remessa e Retorno)",
+      satisfied: nfSatisfied,
     })
   }
 
@@ -214,6 +234,7 @@ function getAllowedEditFields(role: Role, allowStoreChange: boolean) {
   if (role === "ADMIN") {
     CUSTOMER_FIELDS.forEach((field) => fields.add(field))
     PART_FIELDS.forEach((field) => fields.add(field))
+    INTERNAL_FIELDS.forEach((field) => fields.add(field))
     STORE_FIELDS.forEach((field) => fields.add(field))
     SUPPLIER_FIELDS.forEach((field) => fields.add(field))
     return fields
@@ -221,6 +242,7 @@ function getAllowedEditFields(role: Role, allowStoreChange: boolean) {
 
   if (role === "INTERNO") {
     PART_FIELDS.forEach((field) => fields.add(field))
+    INTERNAL_FIELDS.forEach((field) => fields.add(field))
     SUPPLIER_FIELDS.forEach((field) => fields.add(field))
     if (allowStoreChange) {
       STORE_FIELDS.forEach((field) => fields.add(field))
@@ -279,12 +301,7 @@ export async function createTicketWithUploads(options: {
 
   const ticketInput = CreateTicketInputSchema.safeParse({
     tenantId: options.tenantId,
-    storeId: options.formData.get("storeId") as string,
-    nfIda: (options.formData.get("nfIda") as string) || undefined,
-    nfRetorno: (options.formData.get("nfRetorno") as string) || undefined,
-    boletoComAbatimento: (options.formData.get("boletoComAbatimento") as string) || undefined,
-    remessa: (options.formData.get("remessa") as string) || undefined,
-    retorno: (options.formData.get("retorno") as string) || undefined,
+    erpStoreId: options.formData.get("erpStoreId") as string,
     nomeRazaoSocial: options.formData.get("nomeRazaoSocial") as string,
     nomeFantasiaApelido: (options.formData.get("nomeFantasiaApelido") as string) || undefined,
     cpfCnpj: normalizeCpfCnpj((options.formData.get("cpfCnpj") as string) || ""),
@@ -311,8 +328,16 @@ export async function createTicketWithUploads(options: {
     return { error: ticketInput.error.errors[0].message, status: 400 }
   }
 
-  const { signatureDataUrl: signatureValue, ...ticketData } = ticketInput.data
-  const ticketId = await createTicket(ticketData, tenantSettings.driveRootFolderId, options.session.uid, options.session.name)
+  const { signatureDataUrl: signatureValue, erpStoreId, ...ticketData } = ticketInput.data
+  const ticketId = await createTicket(
+    {
+      ...ticketData,
+      storeId: erpStoreId,
+    },
+    tenantSettings.driveRootFolderId,
+    options.session.uid,
+    options.session.name,
+  )
 
   const base64Data = signatureValue.replace(/^data:image\/png;base64,/, "")
   const signatureBuffer = Buffer.from(base64Data, "base64")

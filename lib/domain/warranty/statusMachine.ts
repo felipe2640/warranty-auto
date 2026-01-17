@@ -59,6 +59,17 @@ export function validateTransition(
     return { code: "MISSING_REQUIREMENT", message: "Fornecedor deve estar definido", missing: "supplierId" }
   }
 
+  if (ticket.status === "INTERNO") {
+    const nfOk = Boolean(ticket.nfIda && ticket.nfRetorno && ticket.boletoComAbatimento && ticket.remessa && ticket.retorno)
+    if (!nfOk) {
+      return {
+        code: "MISSING_REQUIREMENT",
+        message: "Dados de NF devem ser preenchidos no Interno",
+        missing: "nfFields",
+      }
+    }
+  }
+
   if (ticket.status === "ENTREGA_LOGISTICA" && !checks.hasCanhoto) {
     return { code: "MISSING_REQUIREMENT", message: "Anexo CANHOTO é obrigatório", missing: "canhoto" }
   }

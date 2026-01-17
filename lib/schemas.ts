@@ -264,11 +264,6 @@ export type Ticket = z.infer<typeof TicketSchema>
 // Form schemas for validation
 export const CreateTicketFormSchema = z.object({
   // Cliente
-  nfIda: z.string().optional(),
-  nfRetorno: z.string().optional(),
-  boletoComAbatimento: z.string().optional(),
-  remessa: z.string().optional(),
-  retorno: z.string().optional(),
   nomeRazaoSocial: z.string().min(1, "Nome/Razão Social é obrigatório"),
   nomeFantasiaApelido: z.string().optional(),
   cpfCnpj: z
@@ -295,7 +290,7 @@ export const CreateTicketFormSchema = z.object({
   obs: z.string().optional(),
 
   // Store
-  storeId: z.string().min(1, "Loja é obrigatória"),
+  erpStoreId: z.string().min(1, "Loja é obrigatória"),
 
   // Signature
   signatureDataUrl: z.string().min(1, "Assinatura é obrigatória"),
@@ -304,12 +299,7 @@ export type CreateTicketFormData = z.infer<typeof CreateTicketFormSchema>
 
 export const CreateTicketInputSchema = z.object({
   tenantId: z.string().min(1),
-  storeId: z.string().min(1),
-  nfIda: z.string().optional(),
-  nfRetorno: z.string().optional(),
-  boletoComAbatimento: z.string().optional(),
-  remessa: z.string().optional(),
-  retorno: z.string().optional(),
+  erpStoreId: z.string().min(1),
   nomeRazaoSocial: z.string().min(1),
   nomeFantasiaApelido: z.string().optional(),
   cpfCnpj: z
@@ -353,6 +343,11 @@ const requiredTrimmedString = z.preprocess((value) => {
 
 export const UpdateTicketDetailsSchema = z.object({
   // Cliente
+  nfIda: optionalTrimmedString,
+  nfRetorno: optionalTrimmedString,
+  boletoComAbatimento: optionalTrimmedString,
+  remessa: optionalTrimmedString,
+  retorno: optionalTrimmedString,
   nomeRazaoSocial: requiredTrimmedString.optional(),
   nomeFantasiaApelido: optionalTrimmedString,
   cpfCnpj: z
@@ -384,6 +379,7 @@ export const UpdateTicketDetailsSchema = z.object({
   numeroVendaOuCfe: requiredTrimmedString.optional(),
   numeroVendaOuCfeFornecedor: optionalTrimmedString,
   obs: optionalTrimmedString,
+  dataIndoFornecedor: dateOnlySchema.optional(),
 
   // Loja & Fornecedor
   storeId: z.string().min(1).optional(),

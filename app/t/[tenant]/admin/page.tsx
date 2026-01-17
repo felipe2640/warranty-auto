@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation"
 import { requireTenantSession } from "@/lib/session"
 import { AppLayout } from "@/components/app-layout"
-import { fetchOpenTicketsCount, fetchStores, fetchSuppliers, fetchTenantSettings, fetchUsers } from "@/lib/services/adminService"
+import { fetchOpenTicketsCount, fetchSuppliers, fetchTenantSettings, fetchUsers } from "@/lib/services/adminService"
+import { fetchErpStores } from "@/lib/erp/stores"
 import { ADMIN_ROLE } from "@/lib/roles"
 import type { TenantSettings } from "@/lib/schemas"
 import Link from "next/link"
@@ -20,7 +21,7 @@ export default async function AdminPage({ params }: { params: Promise<{ tenant: 
 
   const [users, stores, suppliers, settingsData, openTicketsCount] = await Promise.all([
     fetchUsers(tenantId),
-    fetchStores(tenantId),
+    fetchErpStores(),
     fetchSuppliers(tenantId),
     fetchTenantSettings(tenantId),
     fetchOpenTicketsCount(tenantId),

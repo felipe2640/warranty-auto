@@ -96,6 +96,7 @@ export function TicketDetailClient({
   const allowStoreChange = tenantPolicies ? !tenantPolicies.recebedorOnlyOwnStore : true
   const canEditCustomer = userRole === "ADMIN" || userRole === "RECEBEDOR"
   const canEditPiece = userRole === "ADMIN" || userRole === "RECEBEDOR" || userRole === "INTERNO"
+  const canEditInternal = userRole === "ADMIN" || userRole === "INTERNO"
   const canEditStore = userRole === "ADMIN" || (userRole === "INTERNO" && allowStoreChange)
   const canEditSupplier = userRole === "ADMIN" || userRole === "INTERNO"
   const canEditTicket = canEditCustomer || canEditPiece || canEditStore || canEditSupplier
@@ -302,6 +303,7 @@ export function TicketDetailClient({
         suppliers={suppliers}
         canEditCustomer={canEditCustomer}
         canEditPiece={canEditPiece}
+        canEditInternal={canEditInternal}
         canEditStore={canEditStore}
         canEditSupplier={canEditSupplier}
         onUpdated={handleUpdated}

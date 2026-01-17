@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -13,20 +13,22 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { SignaturePad } from "@/components/warranty/signature-pad"
 import { FileUploadSection } from "./file-upload-section"
 import { Loader2, AlertCircle, Check } from "lucide-react"
-import type { Store } from "@/lib/schemas"
+import type { ErpStore } from "@/lib/erp/types"
+import type { ErpSaleItem, ErpSaleItemsResponse } from "@/lib/erp/types"
 import { compressImageFile } from "@/lib/client/imageCompression"
-import { formatCpfCnpj, formatPhoneBR, onlyDigits } from "@/lib/format"
+import { formatCpfCnpj, formatDateBR, formatPhoneBR, onlyDigits } from "@/lib/format"
+import { todayDateOnly } from "@/lib/date"
 
 interface NewTicketFormProps {
   tenant: string
-  stores: Store[]
-  userStoreId?: string
 }
 
-export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProps) {
+export function NewTicketForm({ tenant }: NewTicketFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false)
@@ -34,10 +36,21 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
   const [signatureSaved, setSignatureSaved] = useState(false)
   const [files, setFiles] = useState<Array<{ file: File; category: string }>>([])
+  const [erpStores, setErpStores] = useState<ErpStore[]>([])
+  const [isLoadingStores, setIsLoadingStores] = useState(true)
+  const [storesError, setStoresError] = useState<string | null>(null)
+  const [nfeId, setNfeId] = useState("")
+  const [erpItems, setErpItems] = useState<ErpSaleItem[]>([])
+  const [selectedErpItem, setSelectedErpItem] = useState<ErpSaleItem | null>(null)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [isSearchingNfe, setIsSearchingNfe] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false)
 
   const {
     register,
     handleSubmit,
+    getValues,
     control,
     setValue,
     watch,
@@ -45,16 +58,65 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
   } = useForm<CreateTicketFormData>({
     resolver: zodResolver(CreateTicketFormSchema),
     defaultValues: {
-      storeId: userStoreId || "",
+      erpStoreId: "",
       quantidade: 1,
       isWhatsapp: false,
+      dataRecebendoPeca: todayDateOnly(),
     },
     mode: "onBlur",
   })
 
   const watchIsWhatsapp = watch("isWhatsapp")
+  const watchErpStoreId = watch("erpStoreId")
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadStores = async () => {
+      setIsLoadingStores(true)
+      setStoresError(null)
+
+      try {
+        const response = await fetch("/api/integrations/erp/stores")
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          throw new Error(payload?.error || "Erro ao carregar lojas do ERP")
+        }
+
+        const payload = (await response.json()) as { data?: ErpStore[] }
+        if (!cancelled) {
+          setErpStores(payload.data || [])
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setStoresError(err instanceof Error ? err.message : "Erro ao carregar lojas do ERP")
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingStores(false)
+        }
+      }
+    }
+
+    void loadStores()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    setErpItems([])
+    setSelectedErpItem(null)
+    setSearchError(null)
+  }, [watchErpStoreId])
 
   const onSubmit = async (data: CreateTicketFormData) => {
+    if (!selectedErpItem) {
+      setError("Selecione um item da NFe antes de continuar")
+      return
+    }
+
     if (!signatureDataUrl) {
       setError("Assinatura é obrigatória")
       return
@@ -124,6 +186,59 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
     }
   }
 
+  const handleSearchNfe = async () => {
+    if (!watchErpStoreId) {
+      setSearchError("Selecione a loja antes de buscar a NFe")
+      return
+    }
+
+    const normalizedNfe = onlyDigits(nfeId)
+    if (!normalizedNfe) {
+      setSearchError("Informe um número de NFe válido")
+      return
+    }
+
+    setIsSearchingNfe(true)
+    setError(null)
+    setSearchError(null)
+
+    try {
+      const response = await fetch(
+        `/api/integrations/erp/sales/${normalizedNfe}/items?loja_id=${watchErpStoreId}`,
+      )
+      const payload = (await response.json().catch(() => null)) as ErpSaleItemsResponse | { error?: string } | null
+      if (!response.ok) {
+        throw new Error((payload as { error?: string })?.error || "Erro ao buscar itens da NFe")
+      }
+
+      setErpItems((payload as ErpSaleItemsResponse)?.items || [])
+      setIsSearchOpen(true)
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : "Erro ao buscar itens da NFe")
+    } finally {
+      setIsSearchingNfe(false)
+    }
+  }
+
+  const handleSelectErpItem = (item: ErpSaleItem) => {
+    setSelectedErpItem(item)
+    setIsSearchOpen(false)
+    setError(null)
+
+    setValue("codigo", item.codigoProduto || "", { shouldValidate: true })
+    setValue("descricaoPeca", item.descricao || "", { shouldValidate: true })
+    setValue("ref", item.referencia || "", { shouldValidate: true })
+    setValue("quantidade", item.quantidade ?? 1, { shouldValidate: true })
+    if (item.dataEmissao) {
+      setValue("dataVenda", item.dataEmissao, { shouldValidate: true })
+    }
+
+    const currentSaleNumber = getValues("numeroVendaOuCfe")
+    if (!currentSaleNumber && nfeId) {
+      setValue("numeroVendaOuCfe", onlyDigits(nfeId), { shouldValidate: true })
+    }
+  }
+
   const handleSignatureSave = (dataUrl: string) => {
     setSignatureDataUrl(dataUrl)
     setSignatureSaved(true)
@@ -145,11 +260,18 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
         </Alert>
       )}
 
+      <Alert>
+        <AlertDescription>
+          Os campos de NF serão preenchidos na etapa <strong>Interno</strong>. No cadastro inicial, informe somente os
+          dados do cliente, datas e peça.
+        </AlertDescription>
+      </Alert>
+
       {isOptimizing && <p className="text-xs text-muted-foreground">Otimizando imagens...</p>}
 
       <Accordion
         type="multiple"
-        defaultValue={["cliente", "peca", "financeiro", "obs", "anexos"]}
+        defaultValue={["cliente", "financeiro", "peca", "obs", "anexos"]}
         className="space-y-2"
       >
         {/* Cliente Section */}
@@ -218,30 +340,50 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 border-t border-border">
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Data e Logística Section */}
+        <AccordionItem value="financeiro" className="border border-border rounded-lg px-4">
+          <AccordionTrigger className="hover:no-underline">
+            <span className="font-semibold">Data e Logística</span>
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="nfIda">NF Ida</Label>
-                <Input id="nfIda" {...register("nfIda")} placeholder="Número" />
+                <Label htmlFor="erpStoreId">Loja *</Label>
+                <Select
+                  value={watchErpStoreId || ""}
+                  onValueChange={(value) => setValue("erpStoreId", value, { shouldValidate: true })}
+                  disabled={isLoadingStores || !!storesError}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={isLoadingStores ? "Carregando lojas..." : "Selecione a loja"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {isLoadingStores ? (
+                      <div className="px-2 py-1 text-sm text-muted-foreground">Carregando...</div>
+                    ) : erpStores.length === 0 ? (
+                      <div className="px-2 py-1 text-sm text-muted-foreground">Nenhuma loja encontrada.</div>
+                    ) : (
+                      erpStores.map((store) => (
+                        <SelectItem key={store.id} value={String(store.id)}>
+                          {store.nomeFantasia}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {storesError && <p className="text-sm text-destructive">{storesError}</p>}
+                {errors.erpStoreId && <p className="text-sm text-destructive">{errors.erpStoreId.message}</p>}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="nfRetorno">NF Retorno</Label>
-                <Input id="nfRetorno" {...register("nfRetorno")} placeholder="Número" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="boletoComAbatimento">Boleto c/ Abatimento</Label>
-                <Input id="boletoComAbatimento" {...register("boletoComAbatimento")} placeholder="Valor" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="remessa">Remessa</Label>
-                <Input id="remessa" {...register("remessa")} placeholder="Código" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="retorno">Retorno</Label>
-                <Input id="retorno" {...register("retorno")} placeholder="Código" />
+                <Label htmlFor="dataRecebendoPeca">Data Recebendo Peça *</Label>
+                <Input id="dataRecebendoPeca" type="date" {...register("dataRecebendoPeca")} />
+                {errors.dataRecebendoPeca && (
+                  <p className="text-sm text-destructive">{errors.dataRecebendoPeca.message}</p>
+                )}
               </div>
             </div>
           </AccordionContent>
@@ -253,6 +395,51 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
             <span className="font-semibold">Peça</span>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-4">
+            <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="nfeId">Número da NFe</Label>
+                  <Input
+                    id="nfeId"
+                    value={nfeId}
+                    onChange={(event) => {
+                      const value = onlyDigits(event.target.value)
+                      setNfeId(value)
+                      setSelectedErpItem(null)
+                    }}
+                    placeholder="Ex: 12345"
+                    inputMode="numeric"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSearchNfe}
+                  disabled={isSearchingNfe}
+                  className="w-full md:w-auto"
+                >
+                  {isSearchingNfe ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Buscando...
+                    </>
+                  ) : (
+                    "Buscar itens"
+                  )}
+                </Button>
+              </div>
+
+              {searchError && <p className="text-sm text-destructive">{searchError}</p>}
+
+              {selectedErpItem && (
+                <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                  Item selecionado:{" "}
+                  <span className="font-medium">{selectedErpItem.descricao || "Descrição não informada"}</span>
+                  {selectedErpItem.codigoProduto ? ` • Código ${selectedErpItem.codigoProduto}` : ""}
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="descricaoPeca">Descrição da Peça *</Label>
@@ -291,58 +478,18 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="numeroVendaOuCfeFornecedor">Nº Venda/CFe Fornecedor</Label>
-                <Input
-                  id="numeroVendaOuCfeFornecedor"
-                  {...register("numeroVendaOuCfeFornecedor")}
-                  placeholder="Opcional"
-                />
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Financeiro/Logística Section */}
-        <AccordionItem value="financeiro" className="border border-border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <span className="font-semibold">Datas e Logística</span>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-4 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="storeId">Loja *</Label>
-                <Select defaultValue={userStoreId} onValueChange={(value) => setValue("storeId", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a loja" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map((store) => (
-                      <SelectItem key={store.id} value={store.id}>
-                        {store.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.storeId && <p className="text-sm text-destructive">{errors.storeId.message}</p>}
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="dataVenda">Data da Venda *</Label>
                 <Input id="dataVenda" type="date" {...register("dataVenda")} />
                 {errors.dataVenda && <p className="text-sm text-destructive">{errors.dataVenda.message}</p>}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dataRecebendoPeca">Data Recebendo Peça *</Label>
-                <Input id="dataRecebendoPeca" type="date" {...register("dataRecebendoPeca")} />
-                {errors.dataRecebendoPeca && (
-                  <p className="text-sm text-destructive">{errors.dataRecebendoPeca.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="dataIndoFornecedor">Data Indo Fornecedor</Label>
-                <Input id="dataIndoFornecedor" type="date" {...register("dataIndoFornecedor")} />
+                <Label htmlFor="numeroVendaOuCfeFornecedor">Nº Venda/CFe Fornecedor</Label>
+                <Input
+                  id="numeroVendaOuCfeFornecedor"
+                  {...register("numeroVendaOuCfeFornecedor")}
+                  placeholder="Opcional"
+                />
               </div>
             </div>
           </AccordionContent>
@@ -378,7 +525,19 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
                   </span>
                 )}
               </div>
-              <SignaturePad onSave={handleSignatureSave} onClear={handleSignatureClear} disabled={isSubmitting} />
+              <div className="flex flex-col gap-2">
+                <Button type="button" variant="outline" onClick={() => setShowSignatureDialog(true)} disabled={isSubmitting}>
+                  {signatureSaved ? "Refazer assinatura" : "Capturar assinatura"}
+                </Button>
+                {signatureSaved && (
+                  <Button type="button" variant="ghost" onClick={handleSignatureClear} disabled={isSubmitting}>
+                    Limpar assinatura
+                  </Button>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Abra a assinatura em tela quase inteira para facilitar no celular (gire o aparelho se precisar).
+                </p>
+              </div>
               {errors.signatureDataUrl && <p className="text-sm text-destructive">{errors.signatureDataUrl.message}</p>}
             </div>
 
@@ -391,6 +550,73 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
         </AccordionItem>
       </Accordion>
 
+      <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Itens da NFe</DialogTitle>
+          </DialogHeader>
+
+          {erpItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum item encontrado.</p>
+          ) : (
+            <ScrollArea className="max-h-[60vh] pr-2">
+              <div className="space-y-2">
+                {erpItems.map((item, index) => {
+                  const key = `${item.produtoId ?? "item"}-${item.codigoProduto ?? "codigo"}-${item.referencia ?? "ref"}-${index}`
+
+                  return (
+                    <div key={key} className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center">
+                      <div className="flex-1">
+                        <p className="font-medium">{item.descricao || "Item sem descrição"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.codigoProduto ? `Código ${item.codigoProduto}` : "Código não informado"}
+                          {item.referencia ? ` • Ref ${item.referencia}` : ""}
+                          {typeof item.quantidade === "number" ? ` • Qtde ${item.quantidade}` : ""}
+                          {item.marca ? ` • ${item.marca}` : ""}
+                          {item.dataEmissao ? ` • Emissão ${formatDateBR(item.dataEmissao)}` : ""}
+                        </p>
+                      </div>
+                      <Button type="button" size="sm" onClick={() => handleSelectErpItem(item)}>
+                        Selecionar
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            </ScrollArea>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSignatureDialog} onOpenChange={setShowSignatureDialog}>
+        <DialogContent className="flex h-[90vh] max-w-[95vw] flex-col sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Assinatura do cliente</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1">
+            <SignaturePad
+              onSave={(dataUrl) => {
+                handleSignatureSave(dataUrl)
+                setShowSignatureDialog(false)
+              }}
+              onClear={handleSignatureClear}
+              disabled={isSubmitting}
+              width={900}
+              height={500}
+              maxExportWidth={900}
+              maxExportHeight={400}
+              className="h-[60vh]"
+              canvasClassName="h-full"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setShowSignatureDialog(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex gap-3 pt-4">
         <Button
           type="button"
@@ -401,7 +627,11 @@ export function NewTicketForm({ tenant, stores, userStoreId }: NewTicketFormProp
         >
           Cancelar
         </Button>
-        <Button type="submit" disabled={isSubmitting || isOptimizing} className="flex-1 md:flex-none">
+        <Button
+          type="submit"
+          disabled={isSubmitting || isOptimizing || !selectedErpItem}
+          className="flex-1 md:flex-none"
+        >
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
