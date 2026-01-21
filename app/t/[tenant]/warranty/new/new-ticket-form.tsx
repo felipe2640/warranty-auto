@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, type FieldErrors } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { CreateTicketFormSchema, type CreateTicketFormData } from "@/lib/schemas"
 import { Button } from "@/components/ui/button"
@@ -26,9 +26,10 @@ import { todayDateOnly } from "@/lib/date"
 
 interface NewTicketFormProps {
   tenant: string
+  userStoreId?: string
 }
 
-export function NewTicketForm({ tenant }: NewTicketFormProps) {
+export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false)
@@ -46,6 +47,7 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
   const [isSearchingNfe, setIsSearchingNfe] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [showSignatureDialog, setShowSignatureDialog] = useState(false)
+  const [submitIssues, setSubmitIssues] = useState<string[]>([])
 
   const {
     register,
@@ -53,12 +55,13 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
     getValues,
     control,
     setValue,
+    setError: setFormError,
     watch,
     formState: { errors },
   } = useForm<CreateTicketFormData>({
     resolver: zodResolver(CreateTicketFormSchema),
     defaultValues: {
-      erpStoreId: "",
+      erpStoreId: userStoreId || "",
       quantidade: 1,
       isWhatsapp: false,
       dataRecebendoPeca: todayDateOnly(),
@@ -109,26 +112,60 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
     setErpItems([])
     setSelectedErpItem(null)
     setSearchError(null)
+    setSubmitIssues([])
   }, [watchErpStoreId])
 
-  const onSubmit = async (data: CreateTicketFormData) => {
+  const buildSubmitIssues = (formErrors?: FieldErrors<CreateTicketFormData>) => {
+    const issues = new Set<string>()
+
+    if (!nfeId.trim()) {
+      issues.add("Número da NFC-e é obrigatório")
+    }
+
+    if (searchError) {
+      issues.add(searchError)
+    }
+
+    if (erpItems.length === 0) {
+      issues.add("Nenhum item da NFC-e carregado")
+    }
+
     if (!selectedErpItem) {
-      setError("Selecione um item da NFe antes de continuar")
+      issues.add("Selecione um item da NFC-e")
+    }
+
+    if (formErrors) {
+      Object.values(formErrors).forEach((err) => {
+        const message = err?.message
+        if (message) {
+          issues.add(message)
+        }
+      })
+    }
+
+    return Array.from(issues)
+  }
+
+  const onSubmit = async (data: CreateTicketFormData) => {
+    const clientIssues = buildSubmitIssues()
+    if (clientIssues.length > 0) {
+      setSubmitIssues(clientIssues)
       return
     }
 
     if (!signatureDataUrl) {
-      setError("Assinatura é obrigatória")
+      setSubmitIssues(["Assinatura é obrigatória"])
       return
     }
 
     if (files.some((file) => !file.category)) {
-      setError("Selecione a categoria de todos os anexos")
+      setSubmitIssues(["Selecione a categoria de todos os anexos"])
       return
     }
 
     setIsSubmitting(true)
     setError(null)
+    setSubmitIssues([])
 
     try {
       const formData = new FormData()
@@ -172,8 +209,17 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
       })
 
       if (!response.ok) {
-        const result = await response.json()
-        throw new Error(result.error || "Erro ao criar ticket")
+        const result = await response.json().catch(() => ({}))
+        const errorPayload = result?.error
+        const message = typeof errorPayload === "string" ? errorPayload : errorPayload?.message
+        const field = typeof errorPayload === "object" ? errorPayload?.field : undefined
+
+        if (field && typeof field === "string") {
+          setFormError(field as keyof CreateTicketFormData, { message: message || "Campo obrigatório" })
+        }
+
+        setSubmitIssues(message ? [message] : ["Erro ao criar ticket"])
+        throw new Error(message || "Erro ao criar ticket")
       }
 
       const result = await response.json()
@@ -186,20 +232,25 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
     }
   }
 
+  const onInvalid = (formErrors: FieldErrors<CreateTicketFormData>) => {
+    setSubmitIssues(buildSubmitIssues(formErrors))
+  }
+
   const handleSearchNfe = async () => {
     if (!watchErpStoreId) {
-      setSearchError("Selecione a loja antes de buscar a NFe")
+      setSearchError("Selecione a loja antes de buscar a NFC-e")
       return
     }
 
     const normalizedNfe = onlyDigits(nfeId)
     if (!normalizedNfe) {
-      setSearchError("Informe um número de NFe válido")
+      setSearchError("Informe um número de NFC-e válido")
       return
     }
 
     setIsSearchingNfe(true)
     setError(null)
+    setSubmitIssues([])
     setSearchError(null)
 
     try {
@@ -208,13 +259,13 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
       )
       const payload = (await response.json().catch(() => null)) as ErpSaleItemsResponse | { error?: string } | null
       if (!response.ok) {
-        throw new Error((payload as { error?: string })?.error || "Erro ao buscar itens da NFe")
+        throw new Error((payload as { error?: string })?.error || "Erro ao buscar itens da NFC-e")
       }
 
       setErpItems((payload as ErpSaleItemsResponse)?.items || [])
       setIsSearchOpen(true)
     } catch (err) {
-      setSearchError(err instanceof Error ? err.message : "Erro ao buscar itens da NFe")
+      setSearchError(err instanceof Error ? err.message : "Erro ao buscar itens da NFC-e")
     } finally {
       setIsSearchingNfe(false)
     }
@@ -224,6 +275,7 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
     setSelectedErpItem(item)
     setIsSearchOpen(false)
     setError(null)
+    setSubmitIssues([])
 
     setValue("codigo", item.codigoProduto || "", { shouldValidate: true })
     setValue("descricaoPeca", item.descricao || "", { shouldValidate: true })
@@ -252,7 +304,7 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -398,7 +450,7 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
             <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
                 <div className="space-y-2">
-                  <Label htmlFor="nfeId">Número da NFe</Label>
+                  <Label htmlFor="nfeId">Número da NFC-e</Label>
                   <Input
                     id="nfeId"
                     value={nfeId}
@@ -407,7 +459,7 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
                       setNfeId(value)
                       setSelectedErpItem(null)
                     }}
-                    placeholder="Ex: 12345"
+                    placeholder="Ex: 27207"
                     inputMode="numeric"
                   />
                 </div>
@@ -421,10 +473,10 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
                   {isSearchingNfe ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Buscando...
+                      Buscando NFC-e...
                     </>
                   ) : (
-                    "Buscar itens"
+                    "Buscar NFC-e"
                   )}
                 </Button>
               </div>
@@ -553,7 +605,7 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
       <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Itens da NFe</DialogTitle>
+            <DialogTitle>Itens da NFC-e</DialogTitle>
           </DialogHeader>
 
           {erpItems.length === 0 ? (
@@ -616,6 +668,17 @@ export function NewTicketForm({ tenant }: NewTicketFormProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {submitIssues.length > 0 && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <p className="font-medium">Pendências para criar o ticket:</p>
+          <ul className="mt-2 list-disc pl-5 space-y-1">
+            {submitIssues.map((issue, index) => (
+              <li key={`${issue}-${index}`}>{issue}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex gap-3 pt-4">
         <Button

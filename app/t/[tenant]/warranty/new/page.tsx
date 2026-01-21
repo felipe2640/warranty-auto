@@ -52,7 +52,7 @@ export default async function NewTicketPage({ params }: NewTicketPageProps) {
             </p>
           </div>
         ) : (
-          <NewTicketForm tenant={tenant} />
+          <NewTicketForm tenant={tenant} userStoreId={session.storeId} />
         )}
       </div>
     </AppLayout>

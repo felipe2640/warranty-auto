@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation"
 import { requireTenantSession } from "@/lib/session"
 import { ADMIN_ROLE } from "@/lib/roles"
-import { fetchStores, fetchUsers } from "@/lib/services/adminService"
+import { fetchUsers } from "@/lib/services/adminService"
+import { fetchErpStores } from "@/lib/erp/stores"
 import { AppLayout } from "@/components/app-layout"
 import { UsersTab } from "../tabs/users-tab"
 
@@ -15,10 +16,7 @@ export default async function AdminUsersPage({ params }: { params: Promise<{ ten
     redirect(`/t/${tenant}`)
   }
 
-  const [users, stores] = await Promise.all([
-    fetchUsers(session.tenantId),
-    fetchStores(session.tenantId),
-  ])
+  const [users, stores] = await Promise.all([fetchUsers(session.tenantId), fetchErpStores()])
 
   return (
     <AppLayout

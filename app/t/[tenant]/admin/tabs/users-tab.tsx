@@ -16,11 +16,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Plus, MoreHorizontal, Loader2, UserCheck, UserX, Key } from "lucide-react"
 import { formatTenantEmail } from "@/lib/auth/identifier"
-import type { User, Store, Role } from "@/lib/schemas"
+import type { User, Role } from "@/lib/schemas"
+import type { ErpStore } from "@/lib/erp/types"
 
 interface UsersTabProps {
   users: User[]
-  stores: Store[]
+  stores: ErpStore[]
   tenant: string
   onRefresh?: () => void
 }
@@ -167,7 +168,7 @@ export function UsersTab({ users, stores, tenant, onRefresh }: UsersTabProps) {
 
   const getStoreName = (storeId?: string) => {
     if (!storeId) return "—"
-    return stores.find((s) => s.id === storeId)?.name || storeId
+    return stores.find((s) => String(s.id) === storeId)?.nomeFantasia || storeId
   }
 
   const handleCopyResetLink = async () => {
@@ -381,13 +382,11 @@ export function UsersTab({ users, stores, tenant, onRefresh }: UsersTabProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Nenhuma</SelectItem>
-                    {stores
-                      .filter((s) => s.active)
-                      .map((store) => (
-                        <SelectItem key={store.id} value={store.id}>
-                          {store.name}
-                        </SelectItem>
-                      ))}
+                    {stores.map((store) => (
+                      <SelectItem key={store.id} value={String(store.id)}>
+                        {store.nomeFantasia}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

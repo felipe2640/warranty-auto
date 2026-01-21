@@ -55,6 +55,7 @@ const SALES_ITEMS_QUERY = `
   LEFT JOIN fabricante AS fab_nome
     ON fab_nome.id = fab.fabricante
   WHERE nfe.ide_nNF = ?
+    AND nfe.ide_mod = 65
     AND nfe.loja_entity = ?
   ORDER BY item.det_prod_nItem
 `
@@ -108,6 +109,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ nfe_
         marca,
       }
     })
+
+    if (items.length === 0) {
+      return NextResponse.json(
+        { error: `NFC-e não encontrada para este número na loja ${lojaId}.` },
+        { status: 404 },
+      )
+    }
 
     const response: ErpSaleItemsResponse = { nfeId, lojaId, items }
     return NextResponse.json(response)

@@ -291,12 +291,18 @@ export async function createTicketWithUploads(options: {
   const tenantSettings = await getTenantSettings(options.tenantId)
 
   if (!tenantSettings?.driveRootFolderId) {
-    return { error: "Pasta do Drive nao configurada", status: 400 }
+    return {
+      error: { code: "DRIVE_NOT_CONFIGURED", message: "Pasta do Drive não configurada", field: "driveRootFolderId" },
+      status: 400,
+    }
   }
 
   const signatureDataUrl = options.formData.get("signatureDataUrl") as string
   if (!signatureDataUrl) {
-    return { error: "Assinatura é obrigatória", status: 400 }
+    return {
+      error: { code: "MISSING_SIGNATURE", message: "Assinatura é obrigatória", field: "signatureDataUrl" },
+      status: 400,
+    }
   }
 
   const ticketInput = CreateTicketInputSchema.safeParse({
@@ -325,7 +331,16 @@ export async function createTicketWithUploads(options: {
   })
 
   if (!ticketInput.success) {
-    return { error: ticketInput.error.errors[0].message, status: 400 }
+    const firstError = ticketInput.error.errors[0]
+    const field = firstError?.path?.[0]
+    return {
+      error: {
+        code: "VALIDATION_ERROR",
+        message: firstError?.message || "Dados inválidos",
+        field: typeof field === "string" ? field : undefined,
+      },
+      status: 400,
+    }
   }
 
   const { signatureDataUrl: signatureValue, erpStoreId, ...ticketData } = ticketInput.data
@@ -355,7 +370,14 @@ export async function createTicketWithUploads(options: {
   const categoryEntries = options.formData.getAll("attachmentCategories")
 
   if (attachmentEntries.length !== categoryEntries.length) {
-    return { error: "Categorias de anexos inválidas", status: 400 }
+    return {
+      error: {
+        code: "INVALID_ATTACHMENTS",
+        message: "Categorias de anexos inválidas",
+        field: "attachmentCategories",
+      },
+      status: 400,
+    }
   }
 
   for (let i = 0; i < attachmentEntries.length; i++) {
@@ -363,12 +385,26 @@ export async function createTicketWithUploads(options: {
     const category = categoryEntries[i] as string
 
     if (!category) {
-      return { error: "Categoria do anexo é obrigatória", status: 400 }
+      return {
+        error: {
+          code: "MISSING_ATTACHMENT_CATEGORY",
+          message: "Categoria do anexo é obrigatória",
+          field: "attachmentCategories",
+        },
+        status: 400,
+      }
     }
 
     const categoryValidation = AttachmentCategoryEnum.safeParse(category)
     if (!categoryValidation.success || category === "ASSINATURA") {
-      return { error: "Categoria do anexo inválida", status: 400 }
+      return {
+        error: {
+          code: "INVALID_ATTACHMENT_CATEGORY",
+          message: "Categoria do anexo inválida",
+          field: "attachmentCategories",
+        },
+        status: 400,
+      }
     }
 
     if (file && file.size > 0) {
