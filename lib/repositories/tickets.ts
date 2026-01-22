@@ -116,7 +116,7 @@ export async function createTicket(
   const folderName = `Ticket_${ticketId}_${data.nomeRazaoSocial.substring(0, 20)}`
   const folderId = await createFolder(folderName, driveRootFolderId)
 
-  const ticketData = {
+  const ticketData = stripUndefined({
     ...data,
     id: ticketId,
     status: "RECEBIMENTO" as Status,
@@ -140,7 +140,7 @@ export async function createTicket(
         completedByName: userName,
       },
     ],
-  }
+  })
 
   await ticketRef.set(ticketData)
 

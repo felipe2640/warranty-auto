@@ -13,7 +13,14 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { SignaturePad } from "@/components/warranty/signature-pad"
 import { FileUploadSection } from "./file-upload-section"
@@ -534,15 +541,6 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
                 <Input id="dataVenda" type="date" {...register("dataVenda")} />
                 {errors.dataVenda && <p className="text-sm text-destructive">{errors.dataVenda.message}</p>}
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="numeroVendaOuCfeFornecedor">Nº Venda/CFe Fornecedor</Label>
-                <Input
-                  id="numeroVendaOuCfeFornecedor"
-                  {...register("numeroVendaOuCfeFornecedor")}
-                  placeholder="Opcional"
-                />
-              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -606,6 +604,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Itens da NFC-e</DialogTitle>
+            <DialogDescription>Selecione o item para preencher os dados da peça.</DialogDescription>
           </DialogHeader>
 
           {erpItems.length === 0 ? (
@@ -644,6 +643,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
         <DialogContent className="flex h-[90vh] max-w-[95vw] flex-col sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Assinatura do cliente</DialogTitle>
+            <DialogDescription>Assine no espaço abaixo. Você pode girar o celular para ter mais área.</DialogDescription>
           </DialogHeader>
           <div className="flex-1">
             <SignaturePad

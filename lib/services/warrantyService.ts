@@ -288,140 +288,148 @@ export async function createTicketWithUploads(options: {
   session: { uid: string; name: string; role: Role }
   formData: FormData
 }) {
-  const tenantSettings = await getTenantSettings(options.tenantId)
+  try {
+    const tenantSettings = await getTenantSettings(options.tenantId)
 
-  if (!tenantSettings?.driveRootFolderId) {
-    return {
-      error: { code: "DRIVE_NOT_CONFIGURED", message: "Pasta do Drive não configurada", field: "driveRootFolderId" },
-      status: 400,
+    if (!tenantSettings?.driveRootFolderId) {
+      return {
+        error: { code: "DRIVE_NOT_CONFIGURED", message: "Pasta do Drive não configurada", field: "driveRootFolderId" },
+        status: 400,
+      }
     }
-  }
 
-  const signatureDataUrl = options.formData.get("signatureDataUrl") as string
-  if (!signatureDataUrl) {
-    return {
-      error: { code: "MISSING_SIGNATURE", message: "Assinatura é obrigatória", field: "signatureDataUrl" },
-      status: 400,
+    const signatureDataUrl = options.formData.get("signatureDataUrl") as string
+    if (!signatureDataUrl) {
+      return {
+        error: { code: "MISSING_SIGNATURE", message: "Assinatura é obrigatória", field: "signatureDataUrl" },
+        status: 400,
+      }
     }
-  }
 
-  const ticketInput = CreateTicketInputSchema.safeParse({
-    tenantId: options.tenantId,
-    erpStoreId: options.formData.get("erpStoreId") as string,
-    nomeRazaoSocial: options.formData.get("nomeRazaoSocial") as string,
-    nomeFantasiaApelido: (options.formData.get("nomeFantasiaApelido") as string) || undefined,
-    cpfCnpj: normalizeCpfCnpj((options.formData.get("cpfCnpj") as string) || ""),
-    celular: normalizeCell((options.formData.get("celular") as string) || ""),
-    isWhatsapp: options.formData.get("isWhatsapp") === "true",
-    descricaoPeca: options.formData.get("descricaoPeca") as string,
-    quantidade: Number.parseInt(options.formData.get("quantidade") as string, 10),
-    ref: (options.formData.get("ref") as string) || undefined,
-    codigo: (options.formData.get("codigo") as string) || undefined,
-    defeitoPeca: options.formData.get("defeitoPeca") as string,
-    numeroVendaOuCfe: options.formData.get("numeroVendaOuCfe") as string,
-    numeroVendaOuCfeFornecedor: (options.formData.get("numeroVendaOuCfeFornecedor") as string) || undefined,
-    dataVenda: toDateOnlyString(options.formData.get("dataVenda") as string),
-    dataRecebendoPeca: toDateOnlyString(options.formData.get("dataRecebendoPeca") as string),
-    dataIndoFornecedor: options.formData.get("dataIndoFornecedor")
-      ? toDateOnlyString(options.formData.get("dataIndoFornecedor") as string)
-      : undefined,
-    obs: (options.formData.get("obs") as string) || undefined,
-    createdBy: options.session.uid,
-    signatureDataUrl,
-  })
+    const ticketInput = CreateTicketInputSchema.safeParse({
+      tenantId: options.tenantId,
+      erpStoreId: options.formData.get("erpStoreId") as string,
+      nomeRazaoSocial: options.formData.get("nomeRazaoSocial") as string,
+      nomeFantasiaApelido: (options.formData.get("nomeFantasiaApelido") as string) || undefined,
+      cpfCnpj: normalizeCpfCnpj((options.formData.get("cpfCnpj") as string) || ""),
+      celular: normalizeCell((options.formData.get("celular") as string) || ""),
+      isWhatsapp: options.formData.get("isWhatsapp") === "true",
+      descricaoPeca: options.formData.get("descricaoPeca") as string,
+      quantidade: Number.parseInt(options.formData.get("quantidade") as string, 10),
+      ref: (options.formData.get("ref") as string) || undefined,
+      codigo: (options.formData.get("codigo") as string) || undefined,
+      defeitoPeca: options.formData.get("defeitoPeca") as string,
+      numeroVendaOuCfe: options.formData.get("numeroVendaOuCfe") as string,
+      numeroVendaOuCfeFornecedor: (options.formData.get("numeroVendaOuCfeFornecedor") as string) || undefined,
+      dataVenda: toDateOnlyString(options.formData.get("dataVenda") as string),
+      dataRecebendoPeca: toDateOnlyString(options.formData.get("dataRecebendoPeca") as string),
+      dataIndoFornecedor: options.formData.get("dataIndoFornecedor")
+        ? toDateOnlyString(options.formData.get("dataIndoFornecedor") as string)
+        : undefined,
+      obs: (options.formData.get("obs") as string) || undefined,
+      createdBy: options.session.uid,
+      signatureDataUrl,
+    })
 
-  if (!ticketInput.success) {
-    const firstError = ticketInput.error.errors[0]
-    const field = firstError?.path?.[0]
-    return {
-      error: {
-        code: "VALIDATION_ERROR",
-        message: firstError?.message || "Dados inválidos",
-        field: typeof field === "string" ? field : undefined,
-      },
-      status: 400,
-    }
-  }
-
-  const { signatureDataUrl: signatureValue, erpStoreId, ...ticketData } = ticketInput.data
-  const ticketId = await createTicket(
-    {
-      ...ticketData,
-      storeId: erpStoreId,
-    },
-    tenantSettings.driveRootFolderId,
-    options.session.uid,
-    options.session.name,
-  )
-
-  const base64Data = signatureValue.replace(/^data:image\/png;base64,/, "")
-  const signatureBuffer = Buffer.from(base64Data, "base64")
-
-  await addAttachment(ticketId, signatureBuffer, {
-    name: `assinatura_${ticketId}.png`,
-    mimeType: "image/png",
-    size: signatureBuffer.length,
-    category: "ASSINATURA",
-    uploadedBy: options.session.uid,
-    uploadedByName: options.session.name,
-  })
-
-  const attachmentEntries = options.formData.getAll("attachments")
-  const categoryEntries = options.formData.getAll("attachmentCategories")
-
-  if (attachmentEntries.length !== categoryEntries.length) {
-    return {
-      error: {
-        code: "INVALID_ATTACHMENTS",
-        message: "Categorias de anexos inválidas",
-        field: "attachmentCategories",
-      },
-      status: 400,
-    }
-  }
-
-  for (let i = 0; i < attachmentEntries.length; i++) {
-    const file = attachmentEntries[i] as File
-    const category = categoryEntries[i] as string
-
-    if (!category) {
+    if (!ticketInput.success) {
+      const firstError = ticketInput.error.errors[0]
+      const field = firstError?.path?.[0]
       return {
         error: {
-          code: "MISSING_ATTACHMENT_CATEGORY",
-          message: "Categoria do anexo é obrigatória",
+          code: "VALIDATION_ERROR",
+          message: firstError?.message || "Dados inválidos",
+          field: typeof field === "string" ? field : undefined,
+        },
+        status: 400,
+      }
+    }
+
+    const { signatureDataUrl: signatureValue, erpStoreId, ...ticketData } = ticketInput.data
+    const ticketId = await createTicket(
+      {
+        ...ticketData,
+        storeId: erpStoreId,
+      },
+      tenantSettings.driveRootFolderId,
+      options.session.uid,
+      options.session.name,
+    )
+
+    const base64Data = signatureValue.replace(/^data:image\/png;base64,/, "")
+    const signatureBuffer = Buffer.from(base64Data, "base64")
+
+    await addAttachment(ticketId, signatureBuffer, {
+      name: `assinatura_${ticketId}.png`,
+      mimeType: "image/png",
+      size: signatureBuffer.length,
+      category: "ASSINATURA",
+      uploadedBy: options.session.uid,
+      uploadedByName: options.session.name,
+    })
+
+    const attachmentEntries = options.formData.getAll("attachments")
+    const categoryEntries = options.formData.getAll("attachmentCategories")
+
+    if (attachmentEntries.length !== categoryEntries.length) {
+      return {
+        error: {
+          code: "INVALID_ATTACHMENTS",
+          message: "Categorias de anexos inválidas",
           field: "attachmentCategories",
         },
         status: 400,
       }
     }
 
-    const categoryValidation = AttachmentCategoryEnum.safeParse(category)
-    if (!categoryValidation.success || category === "ASSINATURA") {
-      return {
-        error: {
-          code: "INVALID_ATTACHMENT_CATEGORY",
-          message: "Categoria do anexo inválida",
-          field: "attachmentCategories",
-        },
-        status: 400,
+    for (let i = 0; i < attachmentEntries.length; i++) {
+      const file = attachmentEntries[i] as File
+      const category = categoryEntries[i] as string
+
+      if (!category) {
+        return {
+          error: {
+            code: "MISSING_ATTACHMENT_CATEGORY",
+            message: "Categoria do anexo é obrigatória",
+            field: "attachmentCategories",
+          },
+          status: 400,
+        }
+      }
+
+      const categoryValidation = AttachmentCategoryEnum.safeParse(category)
+      if (!categoryValidation.success || category === "ASSINATURA") {
+        return {
+          error: {
+            code: "INVALID_ATTACHMENT_CATEGORY",
+            message: "Categoria do anexo inválida",
+            field: "attachmentCategories",
+          },
+          status: 400,
+        }
+      }
+
+      if (file && file.size > 0) {
+        const buffer = Buffer.from(await file.arrayBuffer())
+
+        await addAttachment(ticketId, buffer, {
+          name: file.name,
+          mimeType: file.type,
+          size: file.size,
+          category,
+          uploadedBy: options.session.uid,
+          uploadedByName: options.session.name,
+        })
       }
     }
 
-    if (file && file.size > 0) {
-      const buffer = Buffer.from(await file.arrayBuffer())
-
-      await addAttachment(ticketId, buffer, {
-        name: file.name,
-        mimeType: file.type,
-        size: file.size,
-        category,
-        uploadedBy: options.session.uid,
-        uploadedByName: options.session.name,
-      })
+    return { ticketId, status: 200 }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro ao criar ticket"
+    return {
+      error: { code: "CREATE_TICKET_FAILED", message },
+      status: 500,
     }
   }
-
-  return { ticketId, status: 200 }
 }
 
 export async function fetchTicketDetail(options: {
