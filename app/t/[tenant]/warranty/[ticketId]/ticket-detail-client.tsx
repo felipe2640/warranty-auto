@@ -261,6 +261,7 @@ export function TicketDetailClient({
         checklist={transitionChecklist}
         onRequestSupplier={() => setShowSupplierDialog(true)}
         onRequestAttachment={() => setShowAttachmentDialog(true)}
+        onRequestEdit={() => setShowEditDialog(true)}
       />
 
       <RevertStageDialog

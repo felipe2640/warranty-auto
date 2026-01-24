@@ -112,17 +112,12 @@ function buildTransitionChecklist(options: {
       cta: satisfied ? undefined : { type: "supplier", label: "Definir fornecedor" },
     })
 
-    const nfSatisfied = Boolean(
-      options.ticket.nfIda &&
-        options.ticket.nfRetorno &&
-        options.ticket.boletoComAbatimento &&
-        options.ticket.remessa &&
-        options.ticket.retorno,
-    )
+    const nfSatisfied = Boolean(options.ticket.nfIda && options.ticket.dataIndoFornecedor)
     items.push({
       key: "nfFields",
-      label: "Dados da NF preenchidos (Ida, Retorno, Boleto, Remessa e Retorno)",
+      label: "NF Ida e data de ida ao fornecedor preenchidas",
       satisfied: nfSatisfied,
+      cta: nfSatisfied ? undefined : { type: "editInternal", label: "Preencher dados internos" },
     })
   }
 
@@ -323,9 +318,6 @@ export async function createTicketWithUploads(options: {
       numeroVendaOuCfeFornecedor: (options.formData.get("numeroVendaOuCfeFornecedor") as string) || undefined,
       dataVenda: toDateOnlyString(options.formData.get("dataVenda") as string),
       dataRecebendoPeca: toDateOnlyString(options.formData.get("dataRecebendoPeca") as string),
-      dataIndoFornecedor: options.formData.get("dataIndoFornecedor")
-        ? toDateOnlyString(options.formData.get("dataIndoFornecedor") as string)
-        : undefined,
       obs: (options.formData.get("obs") as string) || undefined,
       createdBy: options.session.uid,
       signatureDataUrl,

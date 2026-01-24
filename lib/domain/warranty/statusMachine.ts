@@ -60,11 +60,11 @@ export function validateTransition(
   }
 
   if (ticket.status === "INTERNO") {
-    const nfOk = Boolean(ticket.nfIda && ticket.nfRetorno && ticket.boletoComAbatimento && ticket.remessa && ticket.retorno)
+    const nfOk = Boolean(ticket.nfIda && ticket.dataIndoFornecedor)
     if (!nfOk) {
       return {
         code: "MISSING_REQUIREMENT",
-        message: "Dados de NF devem ser preenchidos no Interno",
+        message: "NF Ida e data de ida ao fornecedor são obrigatórias no Interno",
         missing: "nfFields",
       }
     }

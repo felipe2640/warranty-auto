@@ -5,7 +5,7 @@ export interface TransitionChecklistItem {
   label: string
   satisfied: boolean
   cta?: {
-    type: "supplier" | "attachment" | "supplierResponse" | "resolution"
+    type: "supplier" | "attachment" | "supplierResponse" | "resolution" | "editInternal"
     label: string
   }
 }

@@ -286,7 +286,6 @@ export const CreateTicketFormSchema = z.object({
   numeroVendaOuCfeFornecedor: z.string().optional(),
   dataVenda: requiredDateOnlySchema("Data da venda é obrigatória"),
   dataRecebendoPeca: requiredDateOnlySchema("Data de recebimento é obrigatória"),
-  dataIndoFornecedor: dateOnlySchema.optional(),
   obs: z.string().optional(),
 
   // Store
@@ -322,7 +321,6 @@ export const CreateTicketInputSchema = z.object({
   numeroVendaOuCfeFornecedor: z.string().optional(),
   dataVenda: dateOnlySchema,
   dataRecebendoPeca: dateOnlySchema,
-  dataIndoFornecedor: dateOnlySchema.optional(),
   obs: z.string().optional(),
   createdBy: z.string().min(1),
   signatureDataUrl: z.string().min(1),

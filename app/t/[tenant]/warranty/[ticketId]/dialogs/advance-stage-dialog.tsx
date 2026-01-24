@@ -23,6 +23,7 @@ interface AdvanceStageDialogProps {
   checklist: NextTransitionChecklist
   onRequestSupplier: () => void
   onRequestAttachment: () => void
+  onRequestEdit: () => void
 }
 
 const RESOLUTION_OPTIONS = [
@@ -51,6 +52,7 @@ export function AdvanceStageDialog({
   checklist,
   onRequestSupplier,
   onRequestAttachment,
+  onRequestEdit,
 }: AdvanceStageDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -243,6 +245,10 @@ export function AdvanceStageDialog({
     }
     if (item.cta?.type === "resolution") {
       resolutionRef.current?.focus()
+    }
+    if (item.cta?.type === "editInternal") {
+      onRequestEdit()
+      onOpenChange(false)
     }
   }
 

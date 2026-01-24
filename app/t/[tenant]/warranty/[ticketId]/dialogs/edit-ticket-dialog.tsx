@@ -1,37 +1,68 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useState } from "react"
-import { useForm, Controller } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, AlertCircle } from "lucide-react"
-import type { Supplier, Store, Ticket, TimelineEntry, UpdateTicketDetailsInput } from "@/lib/schemas"
-import { UpdateTicketDetailsSchema } from "@/lib/schemas"
-import { formatCpfCnpj, formatPhoneBR, onlyDigits } from "@/lib/format"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useEffect, useMemo, useState } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, AlertCircle } from "lucide-react";
+import type {
+  Supplier,
+  Store,
+  Ticket,
+  TimelineEntry,
+  UpdateTicketDetailsInput,
+} from "@/lib/schemas";
+import { UpdateTicketDetailsSchema } from "@/lib/schemas";
+import { formatCpfCnpj, formatPhoneBR, onlyDigits } from "@/lib/format";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface EditTicketDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  ticket: Ticket & { storeName: string; supplierName?: string }
-  stores: Store[]
-  suppliers: Supplier[]
-  canEditCustomer: boolean
-  canEditPiece: boolean
-  canEditInternal: boolean
-  canEditStore: boolean
-  canEditSupplier: boolean
-  onUpdated: (ticket: Ticket & { storeName?: string; supplierName?: string }, timelineEntry?: TimelineEntry) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  ticket: Ticket & { storeName: string; supplierName?: string };
+  stores: Store[];
+  suppliers: Supplier[];
+  canEditCustomer: boolean;
+  canEditPiece: boolean;
+  canEditInternal: boolean;
+  canEditStore: boolean;
+  canEditSupplier: boolean;
+  onUpdated: (
+    ticket: Ticket & { storeName?: string; supplierName?: string },
+    timelineEntry?: TimelineEntry,
+  ) => void;
 }
 
 export function EditTicketDialog({
@@ -47,21 +78,50 @@ export function EditTicketDialog({
   canEditSupplier,
   onUpdated,
 }: EditTicketDialogProps) {
-  const isMobile = useIsMobile()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const isMobile = useIsMobile();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const activeStores = useMemo(() => stores.filter((store) => store.active || store.id === ticket.storeId), [stores, ticket.storeId])
+  const activeStores = useMemo(
+    () => stores.filter((store) => store.active || store.id === ticket.storeId),
+    [stores, ticket.storeId],
+  );
+  const storeOptions = useMemo(() => {
+    if (activeStores.some((store) => store.id === ticket.storeId)) {
+      return activeStores;
+    }
+
+    const fallbackName =
+      ticket.storeName && ticket.storeName !== "—"
+        ? ticket.storeName
+        : ticket.storeId;
+
+    return ticket.storeId
+      ? [
+          {
+            id: ticket.storeId,
+            name: fallbackName || ticket.storeId,
+            active: true,
+          },
+          ...activeStores,
+        ]
+      : activeStores;
+  }, [activeStores, ticket.storeId, ticket.storeName]);
   const activeSuppliers = useMemo(
-    () => suppliers.filter((supplier) => supplier.active || supplier.id === ticket.supplierId),
+    () =>
+      suppliers.filter(
+        (supplier) => supplier.active || supplier.id === ticket.supplierId,
+      ),
     [suppliers, ticket.supplierId],
-  )
+  );
 
   const {
     register,
     handleSubmit,
     reset,
     setValue,
+    setError: setFieldError,
+    clearErrors,
     watch,
     control,
     formState: { errors },
@@ -91,10 +151,10 @@ export function EditTicketDialog({
       storeId: ticket.storeId,
       supplierId: ticket.supplierId,
     },
-  })
+  });
 
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
     reset({
       nomeRazaoSocial: ticket.nomeRazaoSocial,
       nomeFantasiaApelido: ticket.nomeFantasiaApelido,
@@ -117,48 +177,71 @@ export function EditTicketDialog({
       obs: ticket.obs,
       storeId: ticket.storeId,
       supplierId: ticket.supplierId,
-    })
-  }, [open, reset, ticket])
+    });
+  }, [open, reset, ticket]);
 
   useEffect(() => {
     if (!open) {
-      setError(null)
+      setError(null);
     }
-  }, [open])
+  }, [open]);
 
-  const supplierValue = watch("supplierId") || "none"
-  const storeValue = watch("storeId") || ""
+  const supplierValue = watch("supplierId") || "none";
+  const storeValue = watch("storeId") || "";
+  const requiresInternalFields = canEditInternal && ticket.status === "INTERNO";
 
   const onSubmit = async (data: UpdateTicketDetailsInput) => {
-    setError(null)
-    setIsSubmitting(true)
+    setError(null);
+    clearErrors(["nfIda", "dataIndoFornecedor"]);
+    if (requiresInternalFields) {
+      let hasMissing = false;
+      if (!data.nfIda || !data.nfIda.trim()) {
+        setFieldError("nfIda", {
+          type: "manual",
+          message: "NF ida é obrigatória",
+        });
+        hasMissing = true;
+      }
+      if (!data.dataIndoFornecedor) {
+        setFieldError("dataIndoFornecedor", {
+          type: "manual",
+          message: "Data ida é obrigatória",
+        });
+        hasMissing = true;
+      }
+      if (hasMissing) {
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
 
     try {
       const response = await fetch(`/api/tickets/${ticket.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      })
+      });
 
-      const result = await response.json().catch(() => ({}))
+      const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(result.error || "Erro ao atualizar ticket")
-        return
+        setError(result.error || "Erro ao atualizar ticket");
+        return;
       }
 
-      onUpdated(result.ticket, result.timelineEntry)
-      handleClose()
+      onUpdated(result.ticket, result.timelineEntry);
+      handleClose();
     } catch {
-      setError("Erro ao atualizar ticket")
+      setError("Erro ao atualizar ticket");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const handleClose = () => {
-    setError(null)
-    onOpenChange(false)
-  }
+    setError(null);
+    onOpenChange(false);
+  };
 
   const content = (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -169,7 +252,10 @@ export function EditTicketDialog({
         </Alert>
       )}
 
-      <Accordion type="multiple" defaultValue={["cliente", "peca", "interno", "loja"]}>
+      <Accordion
+        type="multiple"
+        defaultValue={["cliente", "peca", "interno", "loja"]}
+      >
         {canEditCustomer && (
           <AccordionItem value="cliente">
             <AccordionTrigger>Cliente</AccordionTrigger>
@@ -177,7 +263,11 @@ export function EditTicketDialog({
               <div className="space-y-2">
                 <Label>Nome/Razão Social *</Label>
                 <Input {...register("nomeRazaoSocial")} />
-                {errors.nomeRazaoSocial && <p className="text-sm text-destructive">{errors.nomeRazaoSocial.message}</p>}
+                {errors.nomeRazaoSocial && (
+                  <p className="text-sm text-destructive">
+                    {errors.nomeRazaoSocial.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -193,11 +283,17 @@ export function EditTicketDialog({
                   render={({ field }) => (
                     <Input
                       value={formatCpfCnpj(field.value || "")}
-                      onChange={(event) => field.onChange(onlyDigits(event.target.value))}
+                      onChange={(event) =>
+                        field.onChange(onlyDigits(event.target.value))
+                      }
                     />
                   )}
                 />
-                {errors.cpfCnpj && <p className="text-sm text-destructive">{errors.cpfCnpj.message}</p>}
+                {errors.cpfCnpj && (
+                  <p className="text-sm text-destructive">
+                    {errors.cpfCnpj.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -208,11 +304,17 @@ export function EditTicketDialog({
                   render={({ field }) => (
                     <Input
                       value={formatPhoneBR(field.value || "")}
-                      onChange={(event) => field.onChange(onlyDigits(event.target.value))}
+                      onChange={(event) =>
+                        field.onChange(onlyDigits(event.target.value))
+                      }
                     />
                   )}
                 />
-                {errors.celular && <p className="text-sm text-destructive">{errors.celular.message}</p>}
+                {errors.celular && (
+                  <p className="text-sm text-destructive">
+                    {errors.celular.message}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-3">
@@ -234,13 +336,25 @@ export function EditTicketDialog({
               <div className="space-y-2">
                 <Label>Descrição *</Label>
                 <Input {...register("descricaoPeca")} />
-                {errors.descricaoPeca && <p className="text-sm text-destructive">{errors.descricaoPeca.message}</p>}
+                {errors.descricaoPeca && (
+                  <p className="text-sm text-destructive">
+                    {errors.descricaoPeca.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>Quantidade *</Label>
-                <Input type="number" min={1} {...register("quantidade", { valueAsNumber: true })} />
-                {errors.quantidade && <p className="text-sm text-destructive">{errors.quantidade.message}</p>}
+                <Input
+                  type="number"
+                  min={1}
+                  {...register("quantidade", { valueAsNumber: true })}
+                />
+                {errors.quantidade && (
+                  <p className="text-sm text-destructive">
+                    {errors.quantidade.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -256,13 +370,21 @@ export function EditTicketDialog({
               <div className="space-y-2">
                 <Label>Defeito *</Label>
                 <Input {...register("defeitoPeca")} />
-                {errors.defeitoPeca && <p className="text-sm text-destructive">{errors.defeitoPeca.message}</p>}
+                {errors.defeitoPeca && (
+                  <p className="text-sm text-destructive">
+                    {errors.defeitoPeca.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>Número da venda/CFe *</Label>
                 <Input {...register("numeroVendaOuCfe")} />
-                {errors.numeroVendaOuCfe && <p className="text-sm text-destructive">{errors.numeroVendaOuCfe.message}</p>}
+                {errors.numeroVendaOuCfe && (
+                  <p className="text-sm text-destructive">
+                    {errors.numeroVendaOuCfe.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -283,46 +405,66 @@ export function EditTicketDialog({
             <AccordionTrigger>Interno (NF e Logística)</AccordionTrigger>
             <AccordionContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Preencha os dados de NF para liberar o avanço para Logística.
+                Preencha NF ida e data de ida para liberar o avanço para Logística.
               </p>
 
               <div className="space-y-2">
-                <Label>NF Ida *</Label>
+                <Label>{`NF Ida${requiresInternalFields ? " *" : ""}`}</Label>
                 <Input {...register("nfIda")} />
-                {errors.nfIda && <p className="text-sm text-destructive">{errors.nfIda.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label>NF Retorno *</Label>
-                <Input {...register("nfRetorno")} />
-                {errors.nfRetorno && <p className="text-sm text-destructive">{errors.nfRetorno.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Boleto c/ Abatimento *</Label>
-                <Input {...register("boletoComAbatimento")} />
-                {errors.boletoComAbatimento && (
-                  <p className="text-sm text-destructive">{errors.boletoComAbatimento.message}</p>
+                {errors.nfIda && (
+                  <p className="text-sm text-destructive">
+                    {errors.nfIda.message}
+                  </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label>Remessa *</Label>
+                <Label>NF Retorno</Label>
+                <Input {...register("nfRetorno")} />
+                {errors.nfRetorno && (
+                  <p className="text-sm text-destructive">
+                    {errors.nfRetorno.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Boleto c/ Abatimento</Label>
+                <Input {...register("boletoComAbatimento")} />
+                {errors.boletoComAbatimento && (
+                  <p className="text-sm text-destructive">
+                    {errors.boletoComAbatimento.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Remessa</Label>
                 <Input {...register("remessa")} />
-                {errors.remessa && <p className="text-sm text-destructive">{errors.remessa.message}</p>}
+                {errors.remessa && (
+                  <p className="text-sm text-destructive">
+                    {errors.remessa.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label>Retorno *</Label>
+                <Label>Retorno</Label>
                 <Input {...register("retorno")} />
-                {errors.retorno && <p className="text-sm text-destructive">{errors.retorno.message}</p>}
+                {errors.retorno && (
+                  <p className="text-sm text-destructive">
+                    {errors.retorno.message}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label>Data indo fornecedor</Label>
+                <Label>{`Data ida fornecedor${requiresInternalFields ? " *" : ""}`}</Label>
                 <Input type="date" {...register("dataIndoFornecedor")} />
                 {errors.dataIndoFornecedor && (
-                  <p className="text-sm text-destructive">{errors.dataIndoFornecedor.message}</p>
+                  <p className="text-sm text-destructive">
+                    {errors.dataIndoFornecedor.message}
+                  </p>
                 )}
               </div>
             </AccordionContent>
@@ -338,20 +480,26 @@ export function EditTicketDialog({
                   <Label>Loja</Label>
                   <Select
                     value={storeValue}
-                    onValueChange={(value) => setValue("storeId", value, { shouldValidate: true })}
+                    onValueChange={(value) =>
+                      setValue("storeId", value, { shouldValidate: true })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione uma loja" />
                     </SelectTrigger>
                     <SelectContent>
-                      {activeStores.map((store) => (
+                      {storeOptions.map((store) => (
                         <SelectItem key={store.id} value={store.id}>
                           {store.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.storeId && <p className="text-sm text-destructive">{errors.storeId.message}</p>}
+                  {errors.storeId && (
+                    <p className="text-sm text-destructive">
+                      {errors.storeId.message}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -361,7 +509,11 @@ export function EditTicketDialog({
                   <Select
                     value={supplierValue}
                     onValueChange={(value) =>
-                      setValue("supplierId", value === "none" ? undefined : value, { shouldValidate: true })
+                      setValue(
+                        "supplierId",
+                        value === "none" ? undefined : value,
+                        { shouldValidate: true },
+                      )
                     }
                   >
                     <SelectTrigger>
@@ -384,7 +536,12 @@ export function EditTicketDialog({
       </Accordion>
 
       <DialogFooter className="gap-2 sm:justify-end">
-        <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleClose}
+          disabled={isSubmitting}
+        >
           Cancelar
         </Button>
         <Button type="submit" disabled={isSubmitting}>
@@ -399,7 +556,7 @@ export function EditTicketDialog({
         </Button>
       </DialogFooter>
     </form>
-  )
+  );
 
   if (isMobile) {
     return (
@@ -413,7 +570,7 @@ export function EditTicketDialog({
           </ScrollArea>
         </SheetContent>
       </Sheet>
-    )
+    );
   }
 
   return (
@@ -422,10 +579,8 @@ export function EditTicketDialog({
         <DialogHeader>
           <DialogTitle>Editar ticket</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="max-h-[70vh] pr-4">
-          {content}
-        </ScrollArea>
+        <ScrollArea className="max-h-[70vh] pr-4">{content}</ScrollArea>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
