@@ -26,7 +26,7 @@ import { SignaturePad } from "@/components/warranty/signature-pad"
 import { FileUploadSection } from "./file-upload-section"
 import { Loader2, AlertCircle, Check } from "lucide-react"
 import type { ErpStore } from "@/lib/erp/types"
-import type { ErpSaleItem, ErpSaleItemsResponse } from "@/lib/erp/types"
+import type { ErpProductLookup, ErpProductLookupResponse, ErpSaleItem, ErpSaleItemsResponse } from "@/lib/erp/types"
 import { compressImageFile } from "@/lib/client/imageCompression"
 import { formatCpfCnpj, formatDateBR, formatPhoneBR, onlyDigits } from "@/lib/format"
 import { todayDateOnly } from "@/lib/date"
@@ -50,6 +50,10 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   const [nfeId, setNfeId] = useState("")
   const [erpItems, setErpItems] = useState<ErpSaleItem[]>([])
   const [selectedErpItem, setSelectedErpItem] = useState<ErpSaleItem | null>(null)
+  const [productCode, setProductCode] = useState("") // CHG-20250929-15: store product code search
+  const [selectedProduct, setSelectedProduct] = useState<ErpProductLookup | null>(null) // CHG-20250929-15
+  const [isSearchingProduct, setIsSearchingProduct] = useState(false)
+  const [productSearchError, setProductSearchError] = useState<string | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isSearchingNfe, setIsSearchingNfe] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
@@ -132,6 +136,9 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
     setValue("cpfCnpj", undefined)
     setValue("celular", undefined)
     setValue("isWhatsapp", false)
+    setProductCode("") // CHG-20250929-15: reset product search for store tickets
+    setSelectedProduct(null)
+    setProductSearchError(null)
   }, [setValue, watchTicketType])
 
   const buildSubmitIssues = (ticketType: CreateTicketFormData["ticketType"], formErrors?: FieldErrors<CreateTicketFormData>) => { // CHG-20250929-13: conditional NFC-e checks
@@ -151,6 +158,10 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
 
     if (ticketType === "WARRANTY" && !selectedErpItem) {
       issues.add("Selecione um item da NFC-e")
+    }
+
+    if (ticketType === "WARRANTY_STORE" && !selectedProduct) {
+      issues.add("Busque um produto válido pelo código") // CHG-20250929-15
     }
 
     if (formErrors) {
@@ -256,6 +267,41 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
 
   const onInvalid = (formErrors: FieldErrors<CreateTicketFormData>) => {
     setSubmitIssues(buildSubmitIssues(watchTicketType || "WARRANTY", formErrors)) // CHG-20250929-13: skip NFC-e checks for store tickets
+  }
+
+  const handleSearchProduct = async () => {
+    const trimmedCode = productCode.trim()
+    if (!trimmedCode) {
+      setProductSearchError("Informe um código de produto válido")
+      return
+    }
+
+    setIsSearchingProduct(true)
+    setProductSearchError(null)
+    setSubmitIssues([])
+
+    try {
+      const response = await fetch(`/api/integrations/erp/products/${encodeURIComponent(trimmedCode)}`)
+      const payload = (await response.json().catch(() => null)) as ErpProductLookupResponse | { error?: string } | null
+      if (!response.ok) {
+        throw new Error((payload as { error?: string })?.error || "Erro ao buscar produto")
+      }
+
+      const produto = (payload as ErpProductLookupResponse)?.produto
+      if (!produto) {
+        throw new Error("Produto não encontrado")
+      }
+
+      setSelectedProduct(produto)
+      setValue("codigo", produto.codigoProduto || trimmedCode, { shouldValidate: true })
+      setValue("descricaoPeca", produto.descricao || "", { shouldValidate: true })
+      setValue("ref", produto.referencia || "", { shouldValidate: true })
+    } catch (err) {
+      setSelectedProduct(null)
+      setProductSearchError(err instanceof Error ? err.message : "Erro ao buscar produto") // CHG-20250929-15
+    } finally {
+      setIsSearchingProduct(false)
+    }
   }
 
   const handleSearchNfe = async () => {
@@ -539,7 +585,51 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
                 )}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">Informe o código do produto abaixo. {/* CHG-20250929-13 */}</p>
+              <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
+                {/* CHG-20250929-15: product lookup for store tickets */}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="productCode">Código do Produto</Label>
+                    <Input
+                      id="productCode"
+                      value={productCode}
+                      onChange={(event) => {
+                        setProductCode(event.target.value)
+                        setSelectedProduct(null)
+                        setProductSearchError(null)
+                      }}
+                      placeholder="Ex: 12345"
+                      inputMode="text"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSearchProduct}
+                    disabled={isSearchingProduct}
+                    className="w-full md:w-auto"
+                  >
+                    {isSearchingProduct ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Buscando produto...
+                      </>
+                    ) : (
+                      "Buscar Produto"
+                    )}
+                  </Button>
+                </div>
+
+                {productSearchError && <p className="text-sm text-destructive">{productSearchError}</p>}
+
+                {selectedProduct && (
+                  <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                    Produto selecionado:{" "}
+                    <span className="font-medium">{selectedProduct.descricao || "Descrição não informada"}</span>
+                    {selectedProduct.codigoProduto ? ` • Código ${selectedProduct.codigoProduto}` : ""}
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -740,7 +830,10 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
         <Button
           type="submit"
           disabled={
-            isSubmitting || isOptimizing || (watchTicketType === "WARRANTY" && !selectedErpItem) // CHG-20250929-13
+            isSubmitting ||
+            isOptimizing ||
+            (watchTicketType === "WARRANTY" && !selectedErpItem) ||
+            (watchTicketType === "WARRANTY_STORE" && !selectedProduct) // CHG-20250929-15
           }
           className="flex-1 md:flex-none"
         >

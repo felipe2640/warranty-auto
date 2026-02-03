@@ -27,3 +27,15 @@ export interface ErpSaleItemsResponse {
   lojaId: number
   items: ErpSaleItem[]
 }
+
+export interface ErpProductLookup {
+  produtoId: number | null
+  codigoProduto: string | null
+  descricao: string | null
+  referencia?: string | null
+  marca?: string | null
+} // CHG-20250929-14: product lookup response type
+
+export interface ErpProductLookupResponse {
+  produto: ErpProductLookup
+} // CHG-20250929-14: product lookup response wrapper
