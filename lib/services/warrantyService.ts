@@ -301,14 +301,19 @@ export async function createTicketWithUploads(options: {
       }
     }
 
+    const rawNomeRazaoSocial = options.formData.get("nomeRazaoSocial") as string | null
+    const rawNomeFantasiaApelido = options.formData.get("nomeFantasiaApelido") as string | null
+    const rawCpfCnpj = options.formData.get("cpfCnpj") as string | null
+    const rawCelular = options.formData.get("celular") as string | null
     const ticketInput = CreateTicketInputSchema.safeParse({
+      ticketType: (options.formData.get("ticketType") as string) || "WARRANTY", // CHG-20250929-04
       tenantId: options.tenantId,
       erpStoreId: options.formData.get("erpStoreId") as string,
-      nomeRazaoSocial: options.formData.get("nomeRazaoSocial") as string,
-      nomeFantasiaApelido: (options.formData.get("nomeFantasiaApelido") as string) || undefined,
-      cpfCnpj: normalizeCpfCnpj((options.formData.get("cpfCnpj") as string) || ""),
-      celular: normalizeCell((options.formData.get("celular") as string) || ""),
-      isWhatsapp: options.formData.get("isWhatsapp") === "true",
+      nomeRazaoSocial: rawNomeRazaoSocial?.trim() || undefined,
+      nomeFantasiaApelido: rawNomeFantasiaApelido?.trim() || undefined,
+      cpfCnpj: rawCpfCnpj ? normalizeCpfCnpj(rawCpfCnpj) : undefined,
+      celular: rawCelular ? normalizeCell(rawCelular) : undefined,
+      isWhatsapp: options.formData.get("isWhatsapp") === "true" ? true : undefined,
       descricaoPeca: options.formData.get("descricaoPeca") as string,
       quantidade: Number.parseInt(options.formData.get("quantidade") as string, 10),
       ref: (options.formData.get("ref") as string) || undefined,

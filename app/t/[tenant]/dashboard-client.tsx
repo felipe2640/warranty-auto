@@ -217,7 +217,7 @@ export function DashboardClient({
                             <StatusBadge status={ticket.status} size="sm" />
                           </div>
                           <p className="text-sm text-muted-foreground truncate mt-0.5">
-                            {ticket.nomeRazaoSocial} • {ticket.supplierName || "Sem fornecedor"}
+                            {(ticket.nomeRazaoSocial || "Cliente não informado") /* CHG-20250929-08 */} • {ticket.supplierName || "Sem fornecedor"}
                           </p>
                         </div>
                         <div className="ml-2 text-right text-xs text-muted-foreground shrink-0">
@@ -265,7 +265,7 @@ export function DashboardClient({
                               <StatusBadge status={ticket.status} size="sm" />
                             </div>
                             <p className="text-sm text-muted-foreground truncate mt-0.5">
-                              {ticket.nomeRazaoSocial} • {ticket.supplierName || "Sem fornecedor"}
+                              {(ticket.nomeRazaoSocial || "Cliente não informado") /* CHG-20250929-08 */} • {ticket.supplierName || "Sem fornecedor"}
                             </p>
                           </div>
                           <div className="ml-2 text-right shrink-0">

@@ -22,6 +22,7 @@ export function TicketSummaryTab({ ticket, canDefineSupplier, onSetSupplier }: T
   }
 
   const daysOverdue = getDaysOverdue()
+  const hasCustomerData = Boolean(ticket.nomeRazaoSocial || ticket.cpfCnpj || ticket.celular) // CHG-20250929-10
 
   return (
     <div className="space-y-4">
@@ -34,31 +35,41 @@ export function TicketSummaryTab({ ticket, canDefineSupplier, onSetSupplier }: T
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Nome</span>
-            <span className="font-medium text-foreground">{ticket.nomeRazaoSocial}</span>
-          </div>
-          {ticket.nomeFantasiaApelido && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Fantasia</span>
-              <span className="text-foreground">{ticket.nomeFantasiaApelido}</span>
-            </div>
+          {hasCustomerData ? (
+            <>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Nome</span>
+                <span className="font-medium text-foreground">{ticket.nomeRazaoSocial || "Cliente não informado"}</span>
+              </div>
+              {ticket.nomeFantasiaApelido && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Fantasia</span>
+                  <span className="text-foreground">{ticket.nomeFantasiaApelido}</span>
+                </div>
+              )}
+              {ticket.cpfCnpj ? (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">CPF/CNPJ</span>
+                  <span className="text-foreground">{formatCpfCnpj(ticket.cpfCnpj)}</span>
+                </div>
+              ) : null}
+              {ticket.celular ? (
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Celular</span>
+                  <a
+                    href={ticket.isWhatsapp ? `https://wa.me/55${ticket.celular}` : `tel:${ticket.celular}`}
+                    className="flex items-center gap-1 text-primary hover:underline"
+                  >
+                    <Phone className="h-3 w-3" />
+                    {formatPhoneBR(ticket.celular)}
+                    {ticket.isWhatsapp && <span className="text-xs">(WhatsApp)</span>}
+                  </a>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-muted-foreground">Cliente não informado. {/* CHG-20250929-10 */}</p>
           )}
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">CPF/CNPJ</span>
-            <span className="text-foreground">{formatCpfCnpj(ticket.cpfCnpj)}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">Celular</span>
-            <a
-              href={ticket.isWhatsapp ? `https://wa.me/55${ticket.celular}` : `tel:${ticket.celular}`}
-              className="flex items-center gap-1 text-primary hover:underline"
-            >
-              <Phone className="h-3 w-3" />
-              {formatPhoneBR(ticket.celular)}
-              {ticket.isWhatsapp && <span className="text-xs">(WhatsApp)</span>}
-            </a>
-          </div>
         </CardContent>
       </Card>
 
@@ -95,10 +106,17 @@ export function TicketSummaryTab({ ticket, canDefineSupplier, onSetSupplier }: T
             <span className="text-muted-foreground">Defeito</span>
             <p className="text-foreground">{ticket.defeitoPeca}</p>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Nº Venda/CFe</span>
-            <span className="text-foreground">{ticket.numeroVendaOuCfe}</span>
-          </div>
+          {ticket.numeroVendaOuCfe ? (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Nº Venda/CFe</span>
+              <span className="text-foreground">{ticket.numeroVendaOuCfe}</span>
+            </div>
+          ) : (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Nº Venda/CFe</span>
+              <span className="text-foreground">—</span> {/* CHG-20250929-13: NFC-e optional */}
+            </div>
+          )}
           {ticket.numeroVendaOuCfeFornecedor && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Nº Fornecedor</span>

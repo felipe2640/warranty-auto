@@ -26,7 +26,7 @@ import { SignaturePad } from "@/components/warranty/signature-pad"
 import { FileUploadSection } from "./file-upload-section"
 import { Loader2, AlertCircle, Check } from "lucide-react"
 import type { ErpStore } from "@/lib/erp/types"
-import type { ErpSaleItem, ErpSaleItemsResponse } from "@/lib/erp/types"
+import type { ErpProductLookup, ErpProductLookupResponse, ErpSaleItem, ErpSaleItemsResponse } from "@/lib/erp/types"
 import { compressImageFile } from "@/lib/client/imageCompression"
 import { formatCpfCnpj, formatDateBR, formatPhoneBR, onlyDigits } from "@/lib/format"
 import { todayDateOnly } from "@/lib/date"
@@ -50,6 +50,10 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   const [nfeId, setNfeId] = useState("")
   const [erpItems, setErpItems] = useState<ErpSaleItem[]>([])
   const [selectedErpItem, setSelectedErpItem] = useState<ErpSaleItem | null>(null)
+  const [productCode, setProductCode] = useState("") // CHG-20250929-15: store product code search
+  const [selectedProduct, setSelectedProduct] = useState<ErpProductLookup | null>(null) // CHG-20250929-15
+  const [isSearchingProduct, setIsSearchingProduct] = useState(false)
+  const [productSearchError, setProductSearchError] = useState<string | null>(null)
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isSearchingNfe, setIsSearchingNfe] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
@@ -68,16 +72,19 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   } = useForm<CreateTicketFormData>({
     resolver: zodResolver(CreateTicketFormSchema),
     defaultValues: {
+      ticketType: "WARRANTY", // CHG-20250929-06: default ticket type
       erpStoreId: userStoreId || "",
       quantidade: 1,
       isWhatsapp: false,
       dataRecebendoPeca: todayDateOnly(),
     },
     mode: "onBlur",
+    shouldUnregister: true,
   })
 
-  const watchIsWhatsapp = watch("isWhatsapp")
+  const watchIsWhatsapp = Boolean(watch("isWhatsapp")) // CHG-20250929-06: guard optional whatsapp flag
   const watchErpStoreId = watch("erpStoreId")
+  const watchTicketType = watch("ticketType")
 
   useEffect(() => {
     let cancelled = false
@@ -122,23 +129,39 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
     setSubmitIssues([])
   }, [watchErpStoreId])
 
-  const buildSubmitIssues = (formErrors?: FieldErrors<CreateTicketFormData>) => {
+  useEffect(() => {
+    if (watchTicketType !== "WARRANTY_STORE") return
+    setValue("nomeRazaoSocial", undefined) // CHG-20250929-06: clear customer fields for store tickets
+    setValue("nomeFantasiaApelido", undefined)
+    setValue("cpfCnpj", undefined)
+    setValue("celular", undefined)
+    setValue("isWhatsapp", false)
+    setProductCode("") // CHG-20250929-15: reset product search for store tickets
+    setSelectedProduct(null)
+    setProductSearchError(null)
+  }, [setValue, watchTicketType])
+
+  const buildSubmitIssues = (ticketType: CreateTicketFormData["ticketType"], formErrors?: FieldErrors<CreateTicketFormData>) => { // CHG-20250929-13: conditional NFC-e checks
     const issues = new Set<string>()
 
-    if (!nfeId.trim()) {
+    if (ticketType === "WARRANTY" && !nfeId.trim()) {
       issues.add("Número da NFC-e é obrigatório")
     }
 
-    if (searchError) {
+    if (ticketType === "WARRANTY" && searchError) {
       issues.add(searchError)
     }
 
-    if (erpItems.length === 0) {
+    if (ticketType === "WARRANTY" && erpItems.length === 0) {
       issues.add("Nenhum item da NFC-e carregado")
     }
 
-    if (!selectedErpItem) {
+    if (ticketType === "WARRANTY" && !selectedErpItem) {
       issues.add("Selecione um item da NFC-e")
+    }
+
+    if (ticketType === "WARRANTY_STORE" && !selectedProduct) {
+      issues.add("Busque um produto válido pelo código") // CHG-20250929-15
     }
 
     if (formErrors) {
@@ -154,7 +177,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   }
 
   const onSubmit = async (data: CreateTicketFormData) => {
-    const clientIssues = buildSubmitIssues()
+    const clientIssues = buildSubmitIssues(data.ticketType) // CHG-20250929-13: skip NFC-e checks for store tickets
     if (clientIssues.length > 0) {
       setSubmitIssues(clientIssues)
       return
@@ -193,9 +216,12 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
         }
       }
 
+      const isStoreTicket = data.ticketType === "WARRANTY_STORE"
+      const customerFields = new Set(["nomeRazaoSocial", "nomeFantasiaApelido", "cpfCnpj", "celular", "isWhatsapp"])
       // Add all form fields
       formData.append("tenantSlug", tenant)
       Object.entries(data).forEach(([key, value]) => {
+        if (isStoreTicket && customerFields.has(key)) return // CHG-20250929-06: omit customer fields for store tickets
         if (value !== undefined && value !== null && value !== "") {
           formData.append(key, String(value))
         }
@@ -240,7 +266,42 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   }
 
   const onInvalid = (formErrors: FieldErrors<CreateTicketFormData>) => {
-    setSubmitIssues(buildSubmitIssues(formErrors))
+    setSubmitIssues(buildSubmitIssues(watchTicketType || "WARRANTY", formErrors)) // CHG-20250929-13: skip NFC-e checks for store tickets
+  }
+
+  const handleSearchProduct = async () => {
+    const trimmedCode = productCode.trim()
+    if (!trimmedCode) {
+      setProductSearchError("Informe um código de produto válido")
+      return
+    }
+
+    setIsSearchingProduct(true)
+    setProductSearchError(null)
+    setSubmitIssues([])
+
+    try {
+      const response = await fetch(`/api/integrations/erp/products/${encodeURIComponent(trimmedCode)}`)
+      const payload = (await response.json().catch(() => null)) as ErpProductLookupResponse | { error?: string } | null
+      if (!response.ok) {
+        throw new Error((payload as { error?: string })?.error || "Erro ao buscar produto")
+      }
+
+      const produto = (payload as ErpProductLookupResponse)?.produto
+      if (!produto) {
+        throw new Error("Produto não encontrado")
+      }
+
+      setSelectedProduct(produto)
+      setValue("codigo", produto.codigoProduto || trimmedCode, { shouldValidate: true })
+      setValue("descricaoPeca", produto.descricao || "", { shouldValidate: true })
+      setValue("ref", produto.referencia || "", { shouldValidate: true })
+    } catch (err) {
+      setSelectedProduct(null)
+      setProductSearchError(err instanceof Error ? err.message : "Erro ao buscar produto") // CHG-20250929-15
+    } finally {
+      setIsSearchingProduct(false)
+    }
   }
 
   const handleSearchNfe = async () => {
@@ -310,6 +371,9 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
     setValue("signatureDataUrl", "")
   }
 
+  const accordionDefaults =
+    watchTicketType === "WARRANTY" ? ["cliente", "financeiro", "peca", "obs", "anexos"] : ["financeiro", "peca", "obs", "anexos"] // CHG-20250929-06
+
   return (
     <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
       {error && (
@@ -321,86 +385,107 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
 
       <Alert>
         <AlertDescription>
-          Os campos de NF serão preenchidos na etapa <strong>Interno</strong>. No cadastro inicial, informe somente os
-          dados do cliente, datas e peça.
+          {watchTicketType === "WARRANTY_STORE" ? (
+            <>Ticket interno da loja (sem identificação de cliente). {/* CHG-20250929-06 */}</>
+          ) : (
+            <>
+              Os campos de NF serão preenchidos na etapa <strong>Interno</strong>. No cadastro inicial, informe somente
+              os dados do cliente, datas e peça.
+            </>
+          )}
         </AlertDescription>
       </Alert>
 
+      <div className="space-y-2">
+        <Label htmlFor="ticketType">Tipo de ticket *</Label>
+        <Select
+          value={watchTicketType || ""}
+          onValueChange={(value) => setValue("ticketType", value as CreateTicketFormData["ticketType"], { shouldValidate: true })}
+        >
+          <SelectTrigger id="ticketType">
+            <SelectValue placeholder="Selecione o tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="WARRANTY">Garantia (com cliente)</SelectItem>
+            <SelectItem value="WARRANTY_STORE">Garantia Loja (sem cliente)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {isOptimizing && <p className="text-xs text-muted-foreground">Otimizando imagens...</p>}
 
-      <Accordion
-        type="multiple"
-        defaultValue={["cliente", "financeiro", "peca", "obs", "anexos"]}
-        className="space-y-2"
-      >
+      <Accordion type="multiple" defaultValue={accordionDefaults} className="space-y-2">
         {/* Cliente Section */}
-        <AccordionItem value="cliente" className="border border-border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <span className="font-semibold">Cliente</span>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-4 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nomeRazaoSocial">Nome / Razão Social *</Label>
-                <Input
-                  id="nomeRazaoSocial"
-                  {...register("nomeRazaoSocial")}
-                  placeholder="Nome completo ou razão social"
-                />
-                {errors.nomeRazaoSocial && <p className="text-sm text-destructive">{errors.nomeRazaoSocial.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="nomeFantasiaApelido">Nome Fantasia / Apelido</Label>
-                <Input id="nomeFantasiaApelido" {...register("nomeFantasiaApelido")} placeholder="Opcional" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="cpfCnpj">CPF / CNPJ *</Label>
-                <Controller
-                  control={control}
-                  name="cpfCnpj"
-                  render={({ field }) => (
-                    <Input
-                      id="cpfCnpj"
-                      value={formatCpfCnpj(field.value || "")}
-                      onChange={(e) => field.onChange(onlyDigits(e.target.value).slice(0, 14))}
-                      placeholder="000.000.000-00"
-                    />
+        {watchTicketType === "WARRANTY" ? (
+          <AccordionItem value="cliente" className="border border-border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <span className="font-semibold">Cliente</span>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4 pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nomeRazaoSocial">Nome / Razão Social *</Label>
+                  <Input
+                    id="nomeRazaoSocial"
+                    {...register("nomeRazaoSocial")}
+                    placeholder="Nome completo ou razão social"
+                  />
+                  {errors.nomeRazaoSocial && (
+                    <p className="text-sm text-destructive">{errors.nomeRazaoSocial.message}</p>
                   )}
-                />
-                {errors.cpfCnpj && <p className="text-sm text-destructive">{errors.cpfCnpj.message}</p>}
-              </div>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="celular">Celular *</Label>
-                <Controller
-                  control={control}
-                  name="celular"
-                  render={({ field }) => (
-                    <Input
-                      id="celular"
-                      value={formatPhoneBR(field.value || "")}
-                      onChange={(e) => field.onChange(onlyDigits(e.target.value).slice(0, 11))}
-                      placeholder="(00) 00000-0000"
-                    />
-                  )}
-                />
-                {errors.celular && <p className="text-sm text-destructive">{errors.celular.message}</p>}
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nomeFantasiaApelido">Nome Fantasia / Apelido</Label>
+                  <Input id="nomeFantasiaApelido" {...register("nomeFantasiaApelido")} placeholder="Opcional" />
+                </div>
 
-              <div className="flex items-center gap-3 md:col-span-2">
-                <Switch
-                  id="isWhatsapp"
-                  checked={watchIsWhatsapp}
-                  onCheckedChange={(checked) => setValue("isWhatsapp", checked)}
-                />
-                <Label htmlFor="isWhatsapp">WhatsApp</Label>
-              </div>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cpfCnpj">CPF / CNPJ *</Label>
+                  <Controller
+                    control={control}
+                    name="cpfCnpj"
+                    render={({ field }) => (
+                      <Input
+                        id="cpfCnpj"
+                        value={formatCpfCnpj(field.value || "")}
+                        onChange={(e) => field.onChange(onlyDigits(e.target.value).slice(0, 14))}
+                        placeholder="000.000.000-00"
+                      />
+                    )}
+                  />
+                  {errors.cpfCnpj && <p className="text-sm text-destructive">{errors.cpfCnpj.message}</p>}
+                </div>
 
-          </AccordionContent>
-        </AccordionItem>
+                <div className="space-y-2">
+                  <Label htmlFor="celular">Celular *</Label>
+                  <Controller
+                    control={control}
+                    name="celular"
+                    render={({ field }) => (
+                      <Input
+                        id="celular"
+                        value={formatPhoneBR(field.value || "")}
+                        onChange={(e) => field.onChange(onlyDigits(e.target.value).slice(0, 11))}
+                        placeholder="(00) 00000-0000"
+                      />
+                    )}
+                  />
+                  {errors.celular && <p className="text-sm text-destructive">{errors.celular.message}</p>}
+                </div>
+
+                <div className="flex items-center gap-3 md:col-span-2">
+                  <Switch
+                    id="isWhatsapp"
+                    checked={watchIsWhatsapp}
+                    onCheckedChange={(checked) => setValue("isWhatsapp", checked)}
+                  />
+                  <Label htmlFor="isWhatsapp">WhatsApp</Label>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ) : null}
 
         {/* Data e Logística Section */}
         <AccordionItem value="financeiro" className="border border-border rounded-lg px-4">
@@ -454,50 +539,98 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
             <span className="font-semibold">Peça</span>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-4">
-            <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
-                <div className="space-y-2">
-                  <Label htmlFor="nfeId">Número da NFC-e</Label>
-                  <Input
-                    id="nfeId"
-                    value={nfeId}
-                    onChange={(event) => {
-                      const value = onlyDigits(event.target.value)
-                      setNfeId(value)
-                      setSelectedErpItem(null)
-                    }}
-                    placeholder="Ex: 27207"
-                    inputMode="numeric"
-                  />
+            {watchTicketType === "WARRANTY" ? ( // CHG-20250929-13: hide NFC-e for store tickets
+              <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="nfeId">Número da NFC-e</Label>
+                    <Input
+                      id="nfeId"
+                      value={nfeId}
+                      onChange={(event) => {
+                        const value = onlyDigits(event.target.value)
+                        setNfeId(value)
+                        setSelectedErpItem(null)
+                      }}
+                      placeholder="Ex: 27207"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSearchNfe}
+                    disabled={isSearchingNfe}
+                    className="w-full md:w-auto"
+                  >
+                    {isSearchingNfe ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Buscando NFC-e...
+                      </>
+                    ) : (
+                      "Buscar NFC-e"
+                    )}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleSearchNfe}
-                  disabled={isSearchingNfe}
-                  className="w-full md:w-auto"
-                >
-                  {isSearchingNfe ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Buscando NFC-e...
-                    </>
-                  ) : (
-                    "Buscar NFC-e"
-                  )}
-                </Button>
+
+                {searchError && <p className="text-sm text-destructive">{searchError}</p>}
+
+                {selectedErpItem && (
+                  <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                    Item selecionado:{" "}
+                    <span className="font-medium">{selectedErpItem.descricao || "Descrição não informada"}</span>
+                    {selectedErpItem.codigoProduto ? ` • Código ${selectedErpItem.codigoProduto}` : ""}
+                  </div>
+                )}
               </div>
-
-              {searchError && <p className="text-sm text-destructive">{searchError}</p>}
-
-              {selectedErpItem && (
-                <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-                  Item selecionado:{" "}
-                  <span className="font-medium">{selectedErpItem.descricao || "Descrição não informada"}</span>
-                  {selectedErpItem.codigoProduto ? ` • Código ${selectedErpItem.codigoProduto}` : ""}
+            ) : (
+              <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
+                {/* CHG-20250929-15: product lookup for store tickets */}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="productCode">Código do Produto</Label>
+                    <Input
+                      id="productCode"
+                      value={productCode}
+                      onChange={(event) => {
+                        setProductCode(event.target.value)
+                        setSelectedProduct(null)
+                        setProductSearchError(null)
+                      }}
+                      placeholder="Ex: 12345"
+                      inputMode="text"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSearchProduct}
+                    disabled={isSearchingProduct}
+                    className="w-full md:w-auto"
+                  >
+                    {isSearchingProduct ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Buscando produto...
+                      </>
+                    ) : (
+                      "Buscar Produto"
+                    )}
+                  </Button>
                 </div>
-              )}
-            </div>
+
+                {productSearchError && <p className="text-sm text-destructive">{productSearchError}</p>}
+
+                {selectedProduct && (
+                  <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                    Produto selecionado:{" "}
+                    <span className="font-medium">{selectedProduct.descricao || "Descrição não informada"}</span>
+                    {selectedProduct.codigoProduto ? ` • Código ${selectedProduct.codigoProduto}` : ""}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
@@ -518,7 +651,9 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="codigo">Código</Label>
+                <Label htmlFor="codigo">
+                  Código {watchTicketType === "WARRANTY_STORE" ? "*" : ""} {/* CHG-20250929-13: require product code */}
+                </Label>
                 <Input id="codigo" {...register("codigo")} placeholder="Código" />
               </div>
 
@@ -528,13 +663,15 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
                 {errors.defeitoPeca && <p className="text-sm text-destructive">{errors.defeitoPeca.message}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="numeroVendaOuCfe">Nº Venda / CFe *</Label>
-                <Input id="numeroVendaOuCfe" {...register("numeroVendaOuCfe")} placeholder="Número" />
-                {errors.numeroVendaOuCfe && (
-                  <p className="text-sm text-destructive">{errors.numeroVendaOuCfe.message}</p>
-                )}
-              </div>
+              {watchTicketType === "WARRANTY" ? ( // CHG-20250929-13: NFC-e required only for warranty
+                <div className="space-y-2">
+                  <Label htmlFor="numeroVendaOuCfe">Nº Venda / CFe *</Label>
+                  <Input id="numeroVendaOuCfe" {...register("numeroVendaOuCfe")} placeholder="Número" />
+                  {errors.numeroVendaOuCfe && (
+                    <p className="text-sm text-destructive">{errors.numeroVendaOuCfe.message}</p>
+                  )}
+                </div>
+              ) : null}
 
               <div className="space-y-2">
                 <Label htmlFor="dataVenda">Data da Venda *</Label>
@@ -692,7 +829,12 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting || isOptimizing || !selectedErpItem}
+          disabled={
+            isSubmitting ||
+            isOptimizing ||
+            (watchTicketType === "WARRANTY" && !selectedErpItem) ||
+            (watchTicketType === "WARRANTY_STORE" && !selectedProduct) // CHG-20250929-15
+          }
           className="flex-1 md:flex-none"
         >
           {isSubmitting ? (
