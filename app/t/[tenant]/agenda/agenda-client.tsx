@@ -125,8 +125,8 @@ function getActionKindForDate(date: Date, today: Date): ActionKind | "OTHER" {
   return "OTHER"
 }
 
-function formatClientContact(cpfCnpj: string, phone: string) {
-  return [formatCpfCnpj(cpfCnpj), formatPhoneBR(phone)].filter(Boolean).join(" • ")
+function formatClientContact(cpfCnpj?: string, phone?: string) {
+  return [formatCpfCnpj(cpfCnpj), formatPhoneBR(phone)].filter(Boolean).join(" • ") // CHG-20250929-07
 }
 
 export function AgendaClient({
@@ -303,7 +303,7 @@ export function AgendaClient({
                   </Badge>
                 )}
               </div>
-              <p className="font-medium text-sm">{ticket.nomeRazaoSocial}</p>
+              <p className="font-medium text-sm">{ticket.nomeRazaoSocial || "Cliente não informado"}</p>
               <p className="text-sm text-muted-foreground">{formatClientContact(ticket.cpfCnpj, ticket.celular)}</p>
               <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                 <span className="flex items-center gap-1">
@@ -393,7 +393,7 @@ export function AgendaClient({
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="font-medium text-sm">{ticket.nomeRazaoSocial}</p>
+                        <p className="font-medium text-sm">{ticket.nomeRazaoSocial || "Cliente não informado"}</p>
                         <p className="text-xs text-muted-foreground">
                           {formatClientContact(ticket.cpfCnpj, ticket.celular)}
                         </p>
@@ -697,7 +697,7 @@ export function AgendaClient({
                       <span className="font-mono text-xs font-medium">#{ticket.id.substring(0, 6).toUpperCase()}</span>
                       <StatusBadge status={ticket.status} size="sm" />
                     </div>
-                    <p className="text-sm font-medium truncate">{ticket.nomeRazaoSocial}</p>
+                    <p className="text-sm font-medium truncate">{ticket.nomeRazaoSocial || "Cliente não informado"}</p>
                     <p className="text-xs text-muted-foreground">{formatClientContact(ticket.cpfCnpj, ticket.celular)}</p>
                     <p className="text-xs text-muted-foreground">{ticket.storeName}</p>
                   </div>
@@ -853,7 +853,7 @@ export function AgendaClient({
                 <p className="font-mono text-sm font-medium">
                   #{contactDialog.ticket.id.substring(0, 6).toUpperCase()}
                 </p>
-                <p className="text-sm">{contactDialog.ticket.nomeRazaoSocial}</p>
+                <p className="text-sm">{contactDialog.ticket.nomeRazaoSocial || "Cliente não informado"}</p>
                 <p className="text-xs text-muted-foreground">{contactDialog.ticket.supplierName}</p>
               </div>
 

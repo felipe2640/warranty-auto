@@ -10,7 +10,7 @@ function normalizeText(value: string) {
 }
 
 export function buildSearchTokens(input: {
-  nomeRazaoSocial: string
+  nomeRazaoSocial?: string // CHG-20250929-02: allow tickets without customer name
   cpfCnpj?: string
   celular?: string
   numeroVendaOuCfe?: string
@@ -19,8 +19,10 @@ export function buildSearchTokens(input: {
 }) {
   const tokens = new Set<string>()
 
-  const nameTokens = normalizeText(input.nomeRazaoSocial).split(/\s+/).filter(Boolean)
-  nameTokens.forEach((token) => tokens.add(token))
+  if (input.nomeRazaoSocial) {
+    const nameTokens = normalizeText(input.nomeRazaoSocial).split(/\s+/).filter(Boolean)
+    nameTokens.forEach((token) => tokens.add(token))
+  }
 
   const cpfCnpj = input.cpfCnpj ? normalizeDigits(input.cpfCnpj) : ""
   const celular = input.celular ? normalizeDigits(input.celular) : ""

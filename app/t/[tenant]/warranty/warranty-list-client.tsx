@@ -16,6 +16,10 @@ import { StatusEnum, type Ticket, type Store, type Status, type Role } from "@/l
 import { formatCpfCnpj, formatDateBR, formatPhoneBR } from "@/lib/format"
 import { formatDateOnly, todayDateOnly } from "@/lib/date"
 
+function formatClientContact(cpfCnpj?: string, phone?: string) {
+  return [formatCpfCnpj(cpfCnpj), formatPhoneBR(phone)].filter(Boolean).join(" • ") // CHG-20250929-12
+}
+
 interface WarrantyListClientProps {
   tickets: Ticket[]
   stores: Store[]
@@ -256,10 +260,14 @@ export function WarrantyListClient({
                           {ticket.id.slice(0, 8).toUpperCase()}
                         </TableCell>
                         <TableCell className="max-w-[200px]">
-                          <p className="truncate">{ticket.nomeRazaoSocial}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatCpfCnpj(ticket.cpfCnpj)} • {formatPhoneBR(ticket.celular)}
+                          <p className="truncate">
+                            {ticket.nomeRazaoSocial || "Cliente não informado"} {/* CHG-20250929-09 */}
                           </p>
+                          {formatClientContact(ticket.cpfCnpj, ticket.celular) ? (
+                            <p className="text-xs text-muted-foreground">
+                              {formatClientContact(ticket.cpfCnpj, ticket.celular)}
+                            </p>
+                          ) : null}
                         </TableCell>
                         <TableCell className="max-w-[150px] truncate">{ticket.descricaoPeca}</TableCell>
                         <TableCell>
@@ -302,11 +310,15 @@ export function WarrantyListClient({
                       <span className="font-mono text-sm font-medium">{ticket.id.slice(0, 8).toUpperCase()}</span>
                       <StatusBadge status={ticket.status} size="sm" />
                     </div>
-                    <p className="font-medium">{ticket.nomeRazaoSocial}</p>
-                    <p className="text-sm text-muted-foreground">{ticket.descricaoPeca}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatCpfCnpj(ticket.cpfCnpj)} • {formatPhoneBR(ticket.celular)}
+                    <p className="font-medium">
+                      {ticket.nomeRazaoSocial || "Cliente não informado"} {/* CHG-20250929-09 */}
                     </p>
+                    <p className="text-sm text-muted-foreground">{ticket.descricaoPeca}</p>
+                    {formatClientContact(ticket.cpfCnpj, ticket.celular) ? (
+                      <p className="text-xs text-muted-foreground">
+                        {formatClientContact(ticket.cpfCnpj, ticket.celular)}
+                      </p>
+                    ) : null}
                     <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                       <span>{getStoreName(ticket.storeId)}</span>
                       <span>{formatDateBR(ticket.createdAt)}</span>

@@ -68,16 +68,19 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   } = useForm<CreateTicketFormData>({
     resolver: zodResolver(CreateTicketFormSchema),
     defaultValues: {
+      ticketType: "WARRANTY", // CHG-20250929-06: default ticket type
       erpStoreId: userStoreId || "",
       quantidade: 1,
       isWhatsapp: false,
       dataRecebendoPeca: todayDateOnly(),
     },
     mode: "onBlur",
+    shouldUnregister: true,
   })
 
-  const watchIsWhatsapp = watch("isWhatsapp")
+  const watchIsWhatsapp = Boolean(watch("isWhatsapp")) // CHG-20250929-06: guard optional whatsapp flag
   const watchErpStoreId = watch("erpStoreId")
+  const watchTicketType = watch("ticketType")
 
   useEffect(() => {
     let cancelled = false
@@ -121,6 +124,15 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
     setSearchError(null)
     setSubmitIssues([])
   }, [watchErpStoreId])
+
+  useEffect(() => {
+    if (watchTicketType !== "WARRANTY_STORE") return
+    setValue("nomeRazaoSocial", undefined) // CHG-20250929-06: clear customer fields for store tickets
+    setValue("nomeFantasiaApelido", undefined)
+    setValue("cpfCnpj", undefined)
+    setValue("celular", undefined)
+    setValue("isWhatsapp", false)
+  }, [setValue, watchTicketType])
 
   const buildSubmitIssues = (formErrors?: FieldErrors<CreateTicketFormData>) => {
     const issues = new Set<string>()
@@ -193,9 +205,12 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
         }
       }
 
+      const isStoreTicket = data.ticketType === "WARRANTY_STORE"
+      const customerFields = new Set(["nomeRazaoSocial", "nomeFantasiaApelido", "cpfCnpj", "celular", "isWhatsapp"])
       // Add all form fields
       formData.append("tenantSlug", tenant)
       Object.entries(data).forEach(([key, value]) => {
+        if (isStoreTicket && customerFields.has(key)) return // CHG-20250929-06: omit customer fields for store tickets
         if (value !== undefined && value !== null && value !== "") {
           formData.append(key, String(value))
         }
@@ -310,6 +325,9 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
     setValue("signatureDataUrl", "")
   }
 
+  const accordionDefaults =
+    watchTicketType === "WARRANTY" ? ["cliente", "financeiro", "peca", "obs", "anexos"] : ["financeiro", "peca", "obs", "anexos"] // CHG-20250929-06
+
   return (
     <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
       {error && (
@@ -321,86 +339,107 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
 
       <Alert>
         <AlertDescription>
-          Os campos de NF serão preenchidos na etapa <strong>Interno</strong>. No cadastro inicial, informe somente os
-          dados do cliente, datas e peça.
+          {watchTicketType === "WARRANTY_STORE" ? (
+            <>Ticket interno da loja (sem identificação de cliente). {/* CHG-20250929-06 */}</>
+          ) : (
+            <>
+              Os campos de NF serão preenchidos na etapa <strong>Interno</strong>. No cadastro inicial, informe somente
+              os dados do cliente, datas e peça.
+            </>
+          )}
         </AlertDescription>
       </Alert>
 
+      <div className="space-y-2">
+        <Label htmlFor="ticketType">Tipo de ticket *</Label>
+        <Select
+          value={watchTicketType || ""}
+          onValueChange={(value) => setValue("ticketType", value as CreateTicketFormData["ticketType"], { shouldValidate: true })}
+        >
+          <SelectTrigger id="ticketType">
+            <SelectValue placeholder="Selecione o tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="WARRANTY">Garantia (com cliente)</SelectItem>
+            <SelectItem value="WARRANTY_STORE">Garantia Loja (sem cliente)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {isOptimizing && <p className="text-xs text-muted-foreground">Otimizando imagens...</p>}
 
-      <Accordion
-        type="multiple"
-        defaultValue={["cliente", "financeiro", "peca", "obs", "anexos"]}
-        className="space-y-2"
-      >
+      <Accordion type="multiple" defaultValue={accordionDefaults} className="space-y-2">
         {/* Cliente Section */}
-        <AccordionItem value="cliente" className="border border-border rounded-lg px-4">
-          <AccordionTrigger className="hover:no-underline">
-            <span className="font-semibold">Cliente</span>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-4 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nomeRazaoSocial">Nome / Razão Social *</Label>
-                <Input
-                  id="nomeRazaoSocial"
-                  {...register("nomeRazaoSocial")}
-                  placeholder="Nome completo ou razão social"
-                />
-                {errors.nomeRazaoSocial && <p className="text-sm text-destructive">{errors.nomeRazaoSocial.message}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="nomeFantasiaApelido">Nome Fantasia / Apelido</Label>
-                <Input id="nomeFantasiaApelido" {...register("nomeFantasiaApelido")} placeholder="Opcional" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="cpfCnpj">CPF / CNPJ *</Label>
-                <Controller
-                  control={control}
-                  name="cpfCnpj"
-                  render={({ field }) => (
-                    <Input
-                      id="cpfCnpj"
-                      value={formatCpfCnpj(field.value || "")}
-                      onChange={(e) => field.onChange(onlyDigits(e.target.value).slice(0, 14))}
-                      placeholder="000.000.000-00"
-                    />
+        {watchTicketType === "WARRANTY" ? (
+          <AccordionItem value="cliente" className="border border-border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <span className="font-semibold">Cliente</span>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-4 pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nomeRazaoSocial">Nome / Razão Social *</Label>
+                  <Input
+                    id="nomeRazaoSocial"
+                    {...register("nomeRazaoSocial")}
+                    placeholder="Nome completo ou razão social"
+                  />
+                  {errors.nomeRazaoSocial && (
+                    <p className="text-sm text-destructive">{errors.nomeRazaoSocial.message}</p>
                   )}
-                />
-                {errors.cpfCnpj && <p className="text-sm text-destructive">{errors.cpfCnpj.message}</p>}
-              </div>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="celular">Celular *</Label>
-                <Controller
-                  control={control}
-                  name="celular"
-                  render={({ field }) => (
-                    <Input
-                      id="celular"
-                      value={formatPhoneBR(field.value || "")}
-                      onChange={(e) => field.onChange(onlyDigits(e.target.value).slice(0, 11))}
-                      placeholder="(00) 00000-0000"
-                    />
-                  )}
-                />
-                {errors.celular && <p className="text-sm text-destructive">{errors.celular.message}</p>}
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nomeFantasiaApelido">Nome Fantasia / Apelido</Label>
+                  <Input id="nomeFantasiaApelido" {...register("nomeFantasiaApelido")} placeholder="Opcional" />
+                </div>
 
-              <div className="flex items-center gap-3 md:col-span-2">
-                <Switch
-                  id="isWhatsapp"
-                  checked={watchIsWhatsapp}
-                  onCheckedChange={(checked) => setValue("isWhatsapp", checked)}
-                />
-                <Label htmlFor="isWhatsapp">WhatsApp</Label>
-              </div>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cpfCnpj">CPF / CNPJ *</Label>
+                  <Controller
+                    control={control}
+                    name="cpfCnpj"
+                    render={({ field }) => (
+                      <Input
+                        id="cpfCnpj"
+                        value={formatCpfCnpj(field.value || "")}
+                        onChange={(e) => field.onChange(onlyDigits(e.target.value).slice(0, 14))}
+                        placeholder="000.000.000-00"
+                      />
+                    )}
+                  />
+                  {errors.cpfCnpj && <p className="text-sm text-destructive">{errors.cpfCnpj.message}</p>}
+                </div>
 
-          </AccordionContent>
-        </AccordionItem>
+                <div className="space-y-2">
+                  <Label htmlFor="celular">Celular *</Label>
+                  <Controller
+                    control={control}
+                    name="celular"
+                    render={({ field }) => (
+                      <Input
+                        id="celular"
+                        value={formatPhoneBR(field.value || "")}
+                        onChange={(e) => field.onChange(onlyDigits(e.target.value).slice(0, 11))}
+                        placeholder="(00) 00000-0000"
+                      />
+                    )}
+                  />
+                  {errors.celular && <p className="text-sm text-destructive">{errors.celular.message}</p>}
+                </div>
+
+                <div className="flex items-center gap-3 md:col-span-2">
+                  <Switch
+                    id="isWhatsapp"
+                    checked={watchIsWhatsapp}
+                    onCheckedChange={(checked) => setValue("isWhatsapp", checked)}
+                  />
+                  <Label htmlFor="isWhatsapp">WhatsApp</Label>
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        ) : null}
 
         {/* Data e Logística Section */}
         <AccordionItem value="financeiro" className="border border-border rounded-lg px-4">
