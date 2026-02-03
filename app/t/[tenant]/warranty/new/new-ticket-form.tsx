@@ -134,22 +134,22 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
     setValue("isWhatsapp", false)
   }, [setValue, watchTicketType])
 
-  const buildSubmitIssues = (formErrors?: FieldErrors<CreateTicketFormData>) => {
+  const buildSubmitIssues = (ticketType: CreateTicketFormData["ticketType"], formErrors?: FieldErrors<CreateTicketFormData>) => { // CHG-20250929-13: conditional NFC-e checks
     const issues = new Set<string>()
 
-    if (!nfeId.trim()) {
+    if (ticketType === "WARRANTY" && !nfeId.trim()) {
       issues.add("Número da NFC-e é obrigatório")
     }
 
-    if (searchError) {
+    if (ticketType === "WARRANTY" && searchError) {
       issues.add(searchError)
     }
 
-    if (erpItems.length === 0) {
+    if (ticketType === "WARRANTY" && erpItems.length === 0) {
       issues.add("Nenhum item da NFC-e carregado")
     }
 
-    if (!selectedErpItem) {
+    if (ticketType === "WARRANTY" && !selectedErpItem) {
       issues.add("Selecione um item da NFC-e")
     }
 
@@ -166,7 +166,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   }
 
   const onSubmit = async (data: CreateTicketFormData) => {
-    const clientIssues = buildSubmitIssues()
+    const clientIssues = buildSubmitIssues(data.ticketType) // CHG-20250929-13: skip NFC-e checks for store tickets
     if (clientIssues.length > 0) {
       setSubmitIssues(clientIssues)
       return
@@ -255,7 +255,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   }
 
   const onInvalid = (formErrors: FieldErrors<CreateTicketFormData>) => {
-    setSubmitIssues(buildSubmitIssues(formErrors))
+    setSubmitIssues(buildSubmitIssues(watchTicketType || "WARRANTY", formErrors)) // CHG-20250929-13: skip NFC-e checks for store tickets
   }
 
   const handleSearchNfe = async () => {
@@ -493,50 +493,54 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
             <span className="font-semibold">Peça</span>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-4">
-            <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
-                <div className="space-y-2">
-                  <Label htmlFor="nfeId">Número da NFC-e</Label>
-                  <Input
-                    id="nfeId"
-                    value={nfeId}
-                    onChange={(event) => {
-                      const value = onlyDigits(event.target.value)
-                      setNfeId(value)
-                      setSelectedErpItem(null)
-                    }}
-                    placeholder="Ex: 27207"
-                    inputMode="numeric"
-                  />
+            {watchTicketType === "WARRANTY" ? ( // CHG-20250929-13: hide NFC-e for store tickets
+              <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="nfeId">Número da NFC-e</Label>
+                    <Input
+                      id="nfeId"
+                      value={nfeId}
+                      onChange={(event) => {
+                        const value = onlyDigits(event.target.value)
+                        setNfeId(value)
+                        setSelectedErpItem(null)
+                      }}
+                      placeholder="Ex: 27207"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSearchNfe}
+                    disabled={isSearchingNfe}
+                    className="w-full md:w-auto"
+                  >
+                    {isSearchingNfe ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Buscando NFC-e...
+                      </>
+                    ) : (
+                      "Buscar NFC-e"
+                    )}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleSearchNfe}
-                  disabled={isSearchingNfe}
-                  className="w-full md:w-auto"
-                >
-                  {isSearchingNfe ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Buscando NFC-e...
-                    </>
-                  ) : (
-                    "Buscar NFC-e"
-                  )}
-                </Button>
+
+                {searchError && <p className="text-sm text-destructive">{searchError}</p>}
+
+                {selectedErpItem && (
+                  <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                    Item selecionado:{" "}
+                    <span className="font-medium">{selectedErpItem.descricao || "Descrição não informada"}</span>
+                    {selectedErpItem.codigoProduto ? ` • Código ${selectedErpItem.codigoProduto}` : ""}
+                  </div>
+                )}
               </div>
-
-              {searchError && <p className="text-sm text-destructive">{searchError}</p>}
-
-              {selectedErpItem && (
-                <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-                  Item selecionado:{" "}
-                  <span className="font-medium">{selectedErpItem.descricao || "Descrição não informada"}</span>
-                  {selectedErpItem.codigoProduto ? ` • Código ${selectedErpItem.codigoProduto}` : ""}
-                </div>
-              )}
-            </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Informe o código do produto abaixo. {/* CHG-20250929-13 */}</p>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
@@ -557,7 +561,9 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="codigo">Código</Label>
+                <Label htmlFor="codigo">
+                  Código {watchTicketType === "WARRANTY_STORE" ? "*" : ""} {/* CHG-20250929-13: require product code */}
+                </Label>
                 <Input id="codigo" {...register("codigo")} placeholder="Código" />
               </div>
 
@@ -567,13 +573,15 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
                 {errors.defeitoPeca && <p className="text-sm text-destructive">{errors.defeitoPeca.message}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="numeroVendaOuCfe">Nº Venda / CFe *</Label>
-                <Input id="numeroVendaOuCfe" {...register("numeroVendaOuCfe")} placeholder="Número" />
-                {errors.numeroVendaOuCfe && (
-                  <p className="text-sm text-destructive">{errors.numeroVendaOuCfe.message}</p>
-                )}
-              </div>
+              {watchTicketType === "WARRANTY" ? ( // CHG-20250929-13: NFC-e required only for warranty
+                <div className="space-y-2">
+                  <Label htmlFor="numeroVendaOuCfe">Nº Venda / CFe *</Label>
+                  <Input id="numeroVendaOuCfe" {...register("numeroVendaOuCfe")} placeholder="Número" />
+                  {errors.numeroVendaOuCfe && (
+                    <p className="text-sm text-destructive">{errors.numeroVendaOuCfe.message}</p>
+                  )}
+                </div>
+              ) : null}
 
               <div className="space-y-2">
                 <Label htmlFor="dataVenda">Data da Venda *</Label>
@@ -731,7 +739,9 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting || isOptimizing || !selectedErpItem}
+          disabled={
+            isSubmitting || isOptimizing || (watchTicketType === "WARRANTY" && !selectedErpItem) // CHG-20250929-13
+          }
           className="flex-1 md:flex-none"
         >
           {isSubmitting ? (

@@ -106,10 +106,17 @@ export function TicketSummaryTab({ ticket, canDefineSupplier, onSetSupplier }: T
             <span className="text-muted-foreground">Defeito</span>
             <p className="text-foreground">{ticket.defeitoPeca}</p>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Nº Venda/CFe</span>
-            <span className="text-foreground">{ticket.numeroVendaOuCfe}</span>
-          </div>
+          {ticket.numeroVendaOuCfe ? (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Nº Venda/CFe</span>
+              <span className="text-foreground">{ticket.numeroVendaOuCfe}</span>
+            </div>
+          ) : (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Nº Venda/CFe</span>
+              <span className="text-foreground">—</span> {/* CHG-20250929-13: NFC-e optional */}
+            </div>
+          )}
           {ticket.numeroVendaOuCfeFornecedor && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Nº Fornecedor</span>

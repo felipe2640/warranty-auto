@@ -218,7 +218,7 @@ export const TicketSchema = z.object({
   ref: z.string().optional(),
   codigo: z.string().optional(),
   defeitoPeca: z.string().min(1),
-  numeroVendaOuCfe: z.string().min(1),
+  numeroVendaOuCfe: z.string().min(1).optional(), // CHG-20250929-13: allow store tickets without NFC-e
   numeroVendaOuCfeFornecedor: z.string().optional(),
   dataVenda: dateOnlySchema,
   dataRecebendoPeca: dateOnlySchema,
@@ -311,6 +311,8 @@ export const CreateTicketFormSchema = z.discriminatedUnion("ticketType", [
   }),
   CreateTicketFormBaseSchema.extend({
     ticketType: z.literal("WARRANTY_STORE"),
+    numeroVendaOuCfe: z.string().optional(), // CHG-20250929-13: NFC-e not required for store tickets
+    codigo: z.string().min(1, "Código do produto é obrigatório"),
     nomeRazaoSocial: z.string().optional(),
     nomeFantasiaApelido: z.string().optional(),
     cpfCnpj: z.string().optional(),
@@ -361,6 +363,8 @@ export const CreateTicketInputSchema = z.discriminatedUnion("ticketType", [
   }),
   CreateTicketInputBaseSchema.extend({
     ticketType: z.literal("WARRANTY_STORE"),
+    numeroVendaOuCfe: z.string().optional(), // CHG-20250929-13: NFC-e not required for store tickets
+    codigo: z.string().min(1),
     nomeRazaoSocial: z.string().optional(),
     nomeFantasiaApelido: z.string().optional(),
     cpfCnpj: z.string().optional(),
