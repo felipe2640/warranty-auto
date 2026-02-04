@@ -153,7 +153,9 @@ export function TicketDetailClient({
 
           {/* Second row: Client info */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-            <span className="font-medium text-foreground">{ticket.nomeRazaoSocial}</span>
+            <span className="font-medium text-foreground">
+              {ticket.nomeRazaoSocial || "Cliente não informado"} {/* CHG-20250929-11 */}
+            </span>
             <span>•</span>
             <span>{ticket.storeName}</span>
             {ticket.supplierName && ticket.supplierName !== "—" && (

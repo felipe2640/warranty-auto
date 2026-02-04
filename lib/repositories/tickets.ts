@@ -53,6 +53,7 @@ function serializeTicket(doc: FirebaseFirestore.DocumentSnapshot): Ticket | null
     tenantId: data.tenantId,
     storeId: data.storeId,
     status: data.status,
+    ticketType: data.ticketType ?? "WARRANTY", // CHG-20250929-03: default ticket type for legacy docs
     nfIda: data.nfIda,
     nfRetorno: data.nfRetorno,
     boletoComAbatimento: data.boletoComAbatimento,
@@ -113,7 +114,9 @@ export async function createTicket(
   const ticketId = ticketRef.id
 
   // Create folder in Drive
-  const folderName = `Ticket_${ticketId}_${data.nomeRazaoSocial.substring(0, 20)}`
+  const customerLabel =
+    data.nomeRazaoSocial || (data.ticketType === "WARRANTY_STORE" ? "Garantia_Loja" : "Ticket") // CHG-20250929-03
+  const folderName = `Ticket_${ticketId}_${customerLabel.substring(0, 20)}`
   const folderId = await createFolder(folderName, driveRootFolderId)
 
   const ticketData = stripUndefined({

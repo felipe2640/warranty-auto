@@ -293,22 +293,31 @@ export async function createTicketWithUploads(options: {
       }
     }
 
-    const signatureDataUrl = options.formData.get("signatureDataUrl") as string
-    if (!signatureDataUrl) {
+    const ticketType = (options.formData.get("ticketType") as string) || "WARRANTY"
+    const signatureDataUrl = options.formData.get("signatureDataUrl") as string | null
+    const requiresSignature = ticketType === "WARRANTY"
+
+    if (requiresSignature && !signatureDataUrl) {
       return {
         error: { code: "MISSING_SIGNATURE", message: "Assinatura é obrigatória", field: "signatureDataUrl" },
         status: 400,
       }
     }
 
+    const rawDataVenda = options.formData.get("dataVenda") as string | null
+    const rawNomeRazaoSocial = options.formData.get("nomeRazaoSocial") as string | null
+    const rawNomeFantasiaApelido = options.formData.get("nomeFantasiaApelido") as string | null
+    const rawCpfCnpj = options.formData.get("cpfCnpj") as string | null
+    const rawCelular = options.formData.get("celular") as string | null
     const ticketInput = CreateTicketInputSchema.safeParse({
+      ticketType, // CHG-20250929-04
       tenantId: options.tenantId,
       erpStoreId: options.formData.get("erpStoreId") as string,
-      nomeRazaoSocial: options.formData.get("nomeRazaoSocial") as string,
-      nomeFantasiaApelido: (options.formData.get("nomeFantasiaApelido") as string) || undefined,
-      cpfCnpj: normalizeCpfCnpj((options.formData.get("cpfCnpj") as string) || ""),
-      celular: normalizeCell((options.formData.get("celular") as string) || ""),
-      isWhatsapp: options.formData.get("isWhatsapp") === "true",
+      nomeRazaoSocial: rawNomeRazaoSocial?.trim() || undefined,
+      nomeFantasiaApelido: rawNomeFantasiaApelido?.trim() || undefined,
+      cpfCnpj: rawCpfCnpj ? normalizeCpfCnpj(rawCpfCnpj) : undefined,
+      celular: rawCelular ? normalizeCell(rawCelular) : undefined,
+      isWhatsapp: options.formData.get("isWhatsapp") === "true" ? true : undefined,
       descricaoPeca: options.formData.get("descricaoPeca") as string,
       quantidade: Number.parseInt(options.formData.get("quantidade") as string, 10),
       ref: (options.formData.get("ref") as string) || undefined,
@@ -316,11 +325,11 @@ export async function createTicketWithUploads(options: {
       defeitoPeca: options.formData.get("defeitoPeca") as string,
       numeroVendaOuCfe: options.formData.get("numeroVendaOuCfe") as string,
       numeroVendaOuCfeFornecedor: (options.formData.get("numeroVendaOuCfeFornecedor") as string) || undefined,
-      dataVenda: toDateOnlyString(options.formData.get("dataVenda") as string),
+      dataVenda: rawDataVenda ? toDateOnlyString(rawDataVenda) : undefined,
       dataRecebendoPeca: toDateOnlyString(options.formData.get("dataRecebendoPeca") as string),
       obs: (options.formData.get("obs") as string) || undefined,
       createdBy: options.session.uid,
-      signatureDataUrl,
+      signatureDataUrl: signatureDataUrl || undefined,
     })
 
     if (!ticketInput.success) {
@@ -347,17 +356,19 @@ export async function createTicketWithUploads(options: {
       options.session.name,
     )
 
-    const base64Data = signatureValue.replace(/^data:image\/png;base64,/, "")
-    const signatureBuffer = Buffer.from(base64Data, "base64")
+    if (signatureValue) {
+      const base64Data = signatureValue.replace(/^data:image\/png;base64,/, "")
+      const signatureBuffer = Buffer.from(base64Data, "base64")
 
-    await addAttachment(ticketId, signatureBuffer, {
-      name: `assinatura_${ticketId}.png`,
-      mimeType: "image/png",
-      size: signatureBuffer.length,
-      category: "ASSINATURA",
-      uploadedBy: options.session.uid,
-      uploadedByName: options.session.name,
-    })
+      await addAttachment(ticketId, signatureBuffer, {
+        name: `assinatura_${ticketId}.png`,
+        mimeType: "image/png",
+        size: signatureBuffer.length,
+        category: "ASSINATURA",
+        uploadedBy: options.session.uid,
+        uploadedByName: options.session.name,
+      })
+    }
 
     const attachmentEntries = options.formData.getAll("attachments")
     const categoryEntries = options.formData.getAll("attachmentCategories")

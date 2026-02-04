@@ -2,7 +2,8 @@ export function onlyDigits(value: string): string {
   return value.replace(/\D/g, "")
 }
 
-export function formatCpfCnpj(value: string): string {
+export function formatCpfCnpj(value?: string): string {
+  if (!value) return "" // CHG-20250929-05: allow missing customer identifiers
   const digits = onlyDigits(value).slice(0, 14)
 
   if (digits.length <= 11) {
@@ -31,7 +32,8 @@ export function formatCpfCnpj(value: string): string {
   return formatted
 }
 
-export function formatPhoneBR(value: string): string {
+export function formatPhoneBR(value?: string): string {
+  if (!value) return "" // CHG-20250929-05: allow missing phone numbers
   const digits = onlyDigits(value).slice(0, 11)
   const ddd = digits.slice(0, 2)
   const part1 = digits.slice(2, digits.length > 10 ? 7 : 6)

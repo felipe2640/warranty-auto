@@ -18,6 +18,10 @@ export const StatusEnum = z.enum([
 ])
 export type Status = z.infer<typeof StatusEnum>
 
+// Ticket types (CHG-20250929-01: add warranty store ticket type)
+export const TicketTypeEnum = z.enum(["WARRANTY", "WARRANTY_STORE"])
+export type TicketType = z.infer<typeof TicketTypeEnum>
+
 // Status order for workflow
 export const STATUS_ORDER: Status[] = [
   "RECEBIMENTO",
@@ -194,6 +198,7 @@ export const TicketSchema = z.object({
   tenantId: z.string(),
   storeId: z.string(),
   status: StatusEnum,
+  ticketType: TicketTypeEnum.default("WARRANTY"),
 
   // Cliente
   nfIda: z.string().optional(),
@@ -201,10 +206,10 @@ export const TicketSchema = z.object({
   boletoComAbatimento: z.string().optional(),
   remessa: z.string().optional(),
   retorno: z.string().optional(),
-  nomeRazaoSocial: z.string().min(1),
+  nomeRazaoSocial: z.string().min(1).optional(),
   nomeFantasiaApelido: z.string().optional(),
-  cpfCnpj: z.string().min(1),
-  celular: z.string().min(1),
+  cpfCnpj: z.string().min(1).optional(),
+  celular: z.string().min(1).optional(),
   isWhatsapp: z.boolean().default(false),
 
   // Peça
@@ -213,9 +218,9 @@ export const TicketSchema = z.object({
   ref: z.string().optional(),
   codigo: z.string().optional(),
   defeitoPeca: z.string().min(1),
-  numeroVendaOuCfe: z.string().min(1),
+  numeroVendaOuCfe: z.string().min(1).optional(), // CHG-20250929-13: allow store tickets without NFC-e
   numeroVendaOuCfeFornecedor: z.string().optional(),
-  dataVenda: dateOnlySchema,
+  dataVenda: dateOnlySchema.optional(), // CHG-20250929-16: allow store tickets without sale date
   dataRecebendoPeca: dateOnlySchema,
   dataIndoFornecedor: dateOnlySchema.optional(),
   obs: z.string().optional(),
@@ -262,19 +267,8 @@ export const TicketSchema = z.object({
 export type Ticket = z.infer<typeof TicketSchema>
 
 // Form schemas for validation
-export const CreateTicketFormSchema = z.object({
-  // Cliente
-  nomeRazaoSocial: z.string().min(1, "Nome/Razão Social é obrigatório"),
-  nomeFantasiaApelido: z.string().optional(),
-  cpfCnpj: z
-    .string()
-    .min(1, "CPF/CNPJ é obrigatório")
-    .refine((value) => isValidCpfCnpj(value), "CPF/CNPJ deve ter 11 ou 14 dígitos"),
-  celular: z
-    .string()
-    .min(1, "Celular é obrigatório")
-    .refine((value) => isValidCell(value), "Celular deve ter ao menos 10 dígitos"),
-  isWhatsapp: z.boolean().default(false),
+const CreateTicketFormBaseSchema = z.object({
+  ticketType: TicketTypeEnum, // CHG-20250929-01: add ticket type to form schema
 
   // Peça
   descricaoPeca: z.string().min(1, "Descrição da peça é obrigatória"),
@@ -294,24 +288,46 @@ export const CreateTicketFormSchema = z.object({
   // Signature
   signatureDataUrl: z.string().min(1, "Assinatura é obrigatória"),
 })
-export type CreateTicketFormData = z.infer<typeof CreateTicketFormSchema>
 
-export const CreateTicketInputSchema = z.object({
-  tenantId: z.string().min(1),
-  erpStoreId: z.string().min(1),
-  nomeRazaoSocial: z.string().min(1),
+const CreateTicketFormCustomerSchema = z.object({
+  // Cliente
+  nomeRazaoSocial: z.string().min(1, "Nome/Razão Social é obrigatório"),
   nomeFantasiaApelido: z.string().optional(),
   cpfCnpj: z
     .string()
-    .min(1)
-    .transform((value) => onlyDigits(value).slice(0, 14))
+    .min(1, "CPF/CNPJ é obrigatório")
     .refine((value) => isValidCpfCnpj(value), "CPF/CNPJ deve ter 11 ou 14 dígitos"),
   celular: z
     .string()
-    .min(1)
-    .transform((value) => onlyDigits(value).slice(0, 11))
+    .min(1, "Celular é obrigatório")
     .refine((value) => isValidCell(value), "Celular deve ter ao menos 10 dígitos"),
   isWhatsapp: z.boolean().default(false),
+})
+
+export const CreateTicketFormSchema = z.discriminatedUnion("ticketType", [
+  CreateTicketFormBaseSchema.extend({
+    ticketType: z.literal("WARRANTY"),
+    ...CreateTicketFormCustomerSchema.shape,
+  }),
+  CreateTicketFormBaseSchema.extend({
+    ticketType: z.literal("WARRANTY_STORE"),
+    numeroVendaOuCfe: z.string().optional(), // CHG-20250929-13: NFC-e not required for store tickets
+    codigo: z.string().min(1, "Código do produto é obrigatório"),
+    dataVenda: dateOnlySchema.optional(), // CHG-20250929-16: sale date entered in interno
+    signatureDataUrl: z.string().optional(),
+    nomeRazaoSocial: z.string().optional(),
+    nomeFantasiaApelido: z.string().optional(),
+    cpfCnpj: z.string().optional(),
+    celular: z.string().optional(),
+    isWhatsapp: z.boolean().optional(),
+  }),
+])
+export type CreateTicketFormData = z.infer<typeof CreateTicketFormSchema>
+
+const CreateTicketInputBaseSchema = z.object({
+  ticketType: TicketTypeEnum, // CHG-20250929-01: add ticket type to input schema
+  tenantId: z.string().min(1),
+  erpStoreId: z.string().min(1),
   descricaoPeca: z.string().min(1),
   quantidade: z.number().int().min(1),
   ref: z.string().optional(),
@@ -325,6 +341,41 @@ export const CreateTicketInputSchema = z.object({
   createdBy: z.string().min(1),
   signatureDataUrl: z.string().min(1),
 })
+
+const CreateTicketInputCustomerSchema = z.object({
+  nomeRazaoSocial: z.string().min(1),
+  nomeFantasiaApelido: z.string().optional(),
+  cpfCnpj: z
+    .string()
+    .min(1)
+    .transform((value) => onlyDigits(value).slice(0, 14))
+    .refine((value) => isValidCpfCnpj(value), "CPF/CNPJ deve ter 11 ou 14 dígitos"),
+  celular: z
+    .string()
+    .min(1)
+    .transform((value) => onlyDigits(value).slice(0, 11))
+    .refine((value) => isValidCell(value), "Celular deve ter ao menos 10 dígitos"),
+  isWhatsapp: z.boolean().default(false),
+})
+
+export const CreateTicketInputSchema = z.discriminatedUnion("ticketType", [
+  CreateTicketInputBaseSchema.extend({
+    ticketType: z.literal("WARRANTY"),
+    ...CreateTicketInputCustomerSchema.shape,
+  }),
+  CreateTicketInputBaseSchema.extend({
+    ticketType: z.literal("WARRANTY_STORE"),
+    numeroVendaOuCfe: z.string().optional(), // CHG-20250929-13: NFC-e not required for store tickets
+    codigo: z.string().min(1),
+    dataVenda: dateOnlySchema.optional(), // CHG-20250929-16: sale date entered in interno
+    signatureDataUrl: z.string().optional(),
+    nomeRazaoSocial: z.string().optional(),
+    nomeFantasiaApelido: z.string().optional(),
+    cpfCnpj: z.string().optional(),
+    celular: z.string().optional(),
+    isWhatsapp: z.boolean().optional(),
+  }),
+])
 
 const optionalTrimmedString = z.preprocess((value) => {
   if (value === undefined || value === null) return undefined
