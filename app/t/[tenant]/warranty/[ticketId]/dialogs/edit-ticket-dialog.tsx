@@ -146,6 +146,7 @@ export function EditTicketDialog({
       defeitoPeca: ticket.defeitoPeca,
       numeroVendaOuCfe: ticket.numeroVendaOuCfe,
       numeroVendaOuCfeFornecedor: ticket.numeroVendaOuCfeFornecedor,
+      dataVenda: ticket.dataVenda, // CHG-20251001-01: allow interno edit sale date
       dataIndoFornecedor: ticket.dataIndoFornecedor,
       obs: ticket.obs,
       storeId: ticket.storeId,
@@ -173,6 +174,7 @@ export function EditTicketDialog({
       defeitoPeca: ticket.defeitoPeca,
       numeroVendaOuCfe: ticket.numeroVendaOuCfe,
       numeroVendaOuCfeFornecedor: ticket.numeroVendaOuCfeFornecedor,
+      dataVenda: ticket.dataVenda, // CHG-20251001-01: allow interno edit sale date
       dataIndoFornecedor: ticket.dataIndoFornecedor,
       obs: ticket.obs,
       storeId: ticket.storeId,
@@ -464,6 +466,16 @@ export function EditTicketDialog({
                 {errors.dataIndoFornecedor && (
                   <p className="text-sm text-destructive">
                     {errors.dataIndoFornecedor.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data da Venda</Label>
+                <Input type="date" {...register("dataVenda")} /> {/* CHG-20251001-01: internal sale date input */}
+                {errors.dataVenda && (
+                  <p className="text-sm text-destructive">
+                    {errors.dataVenda.message}
                   </p>
                 )}
               </div>

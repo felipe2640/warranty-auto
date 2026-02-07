@@ -428,6 +428,7 @@ export const UpdateTicketDetailsSchema = z.object({
   numeroVendaOuCfe: requiredTrimmedString.optional(),
   numeroVendaOuCfeFornecedor: optionalTrimmedString,
   obs: optionalTrimmedString,
+  dataVenda: dateOnlySchema.optional(), // CHG-20251001-01: allow sale date update in interno
   dataIndoFornecedor: dateOnlySchema.optional(),
 
   // Loja & Fornecedor

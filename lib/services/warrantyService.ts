@@ -57,7 +57,7 @@ const PART_FIELDS = [
   "numeroVendaOuCfeFornecedor",
   "obs",
 ] as const
-const INTERNAL_FIELDS = ["nfIda", "nfRetorno", "boletoComAbatimento", "remessa", "retorno", "dataIndoFornecedor"] as const
+const INTERNAL_FIELDS = ["nfIda", "nfRetorno", "boletoComAbatimento", "remessa", "retorno", "dataIndoFornecedor", "dataVenda"] as const // CHG-20251001-01: allow interno to set sale date
 const STORE_FIELDS = ["storeId"] as const
 const SUPPLIER_FIELDS = ["supplierId"] as const
 
@@ -81,6 +81,7 @@ const EDIT_FIELD_LABELS: Record<string, string> = {
   remessa: "Remessa",
   retorno: "Retorno",
   dataIndoFornecedor: "Data indo fornecedor",
+  dataVenda: "Data da venda", // CHG-20251001-01: label for internal sale date edits
   storeId: "Loja",
   supplierId: "Fornecedor",
 }
