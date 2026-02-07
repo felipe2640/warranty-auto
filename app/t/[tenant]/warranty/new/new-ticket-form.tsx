@@ -136,9 +136,14 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
     setValue("cpfCnpj", undefined)
     setValue("celular", undefined)
     setValue("isWhatsapp", false)
+    setValue("dataVenda", undefined)
+    setValue("signatureDataUrl", undefined)
     setProductCode("") // CHG-20250929-15: reset product search for store tickets
     setSelectedProduct(null)
     setProductSearchError(null)
+    setSignatureDataUrl(null)
+    setSignatureSaved(false)
+    setShowSignatureDialog(false)
   }, [setValue, watchTicketType])
 
   const buildSubmitIssues = (ticketType: CreateTicketFormData["ticketType"], formErrors?: FieldErrors<CreateTicketFormData>) => { // CHG-20250929-13: conditional NFC-e checks
@@ -183,7 +188,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
       return
     }
 
-    if (!signatureDataUrl) {
+    if (data.ticketType === "WARRANTY" && !signatureDataUrl) {
       setSubmitIssues(["Assinatura é obrigatória"])
       return
     }
@@ -228,7 +233,9 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
       })
 
       // Add signature
-      formData.append("signatureDataUrl", signatureDataUrl)
+      if (signatureDataUrl) {
+        formData.append("signatureDataUrl", signatureDataUrl)
+      }
 
       // Add file attachments
       optimizedFiles.forEach(({ file, category }) => {
@@ -673,11 +680,13 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
                 </div>
               ) : null}
 
-              <div className="space-y-2">
-                <Label htmlFor="dataVenda">Data da Venda *</Label>
-                <Input id="dataVenda" type="date" {...register("dataVenda")} />
-                {errors.dataVenda && <p className="text-sm text-destructive">{errors.dataVenda.message}</p>}
-              </div>
+              {watchTicketType === "WARRANTY" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="dataVenda">Data da Venda *</Label>
+                  <Input id="dataVenda" type="date" {...register("dataVenda")} />
+                  {errors.dataVenda && <p className="text-sm text-destructive">{errors.dataVenda.message}</p>}
+                </div>
+              ) : null}
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -702,31 +711,38 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
           </AccordionTrigger>
           <AccordionContent className="space-y-6 pt-4">
             {/* Signature */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Label>Assinatura do Cliente *</Label>
-                {signatureSaved && (
-                  <span className="text-xs text-green-600 flex items-center gap-1">
-                    <Check className="h-3 w-3" />
-                    Salva
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-col gap-2">
-                <Button type="button" variant="outline" onClick={() => setShowSignatureDialog(true)} disabled={isSubmitting}>
-                  {signatureSaved ? "Refazer assinatura" : "Capturar assinatura"}
-                </Button>
-                {signatureSaved && (
-                  <Button type="button" variant="ghost" onClick={handleSignatureClear} disabled={isSubmitting}>
-                    Limpar assinatura
+            {watchTicketType === "WARRANTY" ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>Assinatura do Cliente *</Label>
+                  {signatureSaved && (
+                    <span className="text-xs text-green-600 flex items-center gap-1">
+                      <Check className="h-3 w-3" />
+                      Salva
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowSignatureDialog(true)}
+                    disabled={isSubmitting}
+                  >
+                    {signatureSaved ? "Refazer assinatura" : "Capturar assinatura"}
                   </Button>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Abra a assinatura em tela quase inteira para facilitar no celular (gire o aparelho se precisar).
-                </p>
+                  {signatureSaved && (
+                    <Button type="button" variant="ghost" onClick={handleSignatureClear} disabled={isSubmitting}>
+                      Limpar assinatura
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Abra a assinatura em tela quase inteira para facilitar no celular (gire o aparelho se precisar).
+                  </p>
+                </div>
+                {errors.signatureDataUrl && <p className="text-sm text-destructive">{errors.signatureDataUrl.message}</p>}
               </div>
-              {errors.signatureDataUrl && <p className="text-sm text-destructive">{errors.signatureDataUrl.message}</p>}
-            </div>
+            ) : null}
 
             {/* File attachments */}
             <div className="space-y-2">
@@ -776,35 +792,37 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showSignatureDialog} onOpenChange={setShowSignatureDialog}>
-        <DialogContent className="flex h-[90vh] max-w-[95vw] flex-col sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Assinatura do cliente</DialogTitle>
-            <DialogDescription>Assine no espaço abaixo. Você pode girar o celular para ter mais área.</DialogDescription>
-          </DialogHeader>
-          <div className="flex-1">
-            <SignaturePad
-              onSave={(dataUrl) => {
-                handleSignatureSave(dataUrl)
-                setShowSignatureDialog(false)
-              }}
-              onClear={handleSignatureClear}
-              disabled={isSubmitting}
-              width={900}
-              height={500}
-              maxExportWidth={900}
-              maxExportHeight={400}
-              className="h-[60vh]"
-              canvasClassName="h-full"
-            />
-          </div>
-          <DialogFooter className="gap-2 sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setShowSignatureDialog(false)}>
-              Fechar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {watchTicketType === "WARRANTY" ? (
+        <Dialog open={showSignatureDialog} onOpenChange={setShowSignatureDialog}>
+          <DialogContent className="flex h-[90vh] max-w-[95vw] flex-col sm:max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Assinatura do cliente</DialogTitle>
+              <DialogDescription>Assine no espaço abaixo. Você pode girar o celular para ter mais área.</DialogDescription>
+            </DialogHeader>
+            <div className="flex-1">
+              <SignaturePad
+                onSave={(dataUrl) => {
+                  handleSignatureSave(dataUrl)
+                  setShowSignatureDialog(false)
+                }}
+                onClear={handleSignatureClear}
+                disabled={isSubmitting}
+                width={900}
+                height={500}
+                maxExportWidth={900}
+                maxExportHeight={400}
+                className="h-[60vh]"
+                canvasClassName="h-full"
+              />
+            </div>
+            <DialogFooter className="gap-2 sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setShowSignatureDialog(false)}>
+                Fechar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
 
       {submitIssues.length > 0 && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">

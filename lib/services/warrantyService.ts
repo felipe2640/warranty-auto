@@ -57,7 +57,7 @@ const PART_FIELDS = [
   "numeroVendaOuCfeFornecedor",
   "obs",
 ] as const
-const INTERNAL_FIELDS = ["nfIda", "nfRetorno", "boletoComAbatimento", "remessa", "retorno", "dataIndoFornecedor"] as const
+const INTERNAL_FIELDS = ["nfIda", "nfRetorno", "boletoComAbatimento", "remessa", "retorno", "dataIndoFornecedor", "dataVenda"] as const // CHG-20251001-01: allow interno to set sale date
 const STORE_FIELDS = ["storeId"] as const
 const SUPPLIER_FIELDS = ["supplierId"] as const
 
@@ -81,6 +81,7 @@ const EDIT_FIELD_LABELS: Record<string, string> = {
   remessa: "Remessa",
   retorno: "Retorno",
   dataIndoFornecedor: "Data indo fornecedor",
+  dataVenda: "Data da venda", // CHG-20251001-01: label for internal sale date edits
   storeId: "Loja",
   supplierId: "Fornecedor",
 }
@@ -293,20 +294,24 @@ export async function createTicketWithUploads(options: {
       }
     }
 
-    const signatureDataUrl = options.formData.get("signatureDataUrl") as string
-    if (!signatureDataUrl) {
+    const ticketType = (options.formData.get("ticketType") as string) || "WARRANTY"
+    const signatureDataUrl = options.formData.get("signatureDataUrl") as string | null
+    const requiresSignature = ticketType === "WARRANTY"
+
+    if (requiresSignature && !signatureDataUrl) {
       return {
         error: { code: "MISSING_SIGNATURE", message: "Assinatura é obrigatória", field: "signatureDataUrl" },
         status: 400,
       }
     }
 
+    const rawDataVenda = options.formData.get("dataVenda") as string | null
     const rawNomeRazaoSocial = options.formData.get("nomeRazaoSocial") as string | null
     const rawNomeFantasiaApelido = options.formData.get("nomeFantasiaApelido") as string | null
     const rawCpfCnpj = options.formData.get("cpfCnpj") as string | null
     const rawCelular = options.formData.get("celular") as string | null
     const ticketInput = CreateTicketInputSchema.safeParse({
-      ticketType: (options.formData.get("ticketType") as string) || "WARRANTY", // CHG-20250929-04
+      ticketType, // CHG-20250929-04
       tenantId: options.tenantId,
       erpStoreId: options.formData.get("erpStoreId") as string,
       nomeRazaoSocial: rawNomeRazaoSocial?.trim() || undefined,
@@ -321,11 +326,11 @@ export async function createTicketWithUploads(options: {
       defeitoPeca: options.formData.get("defeitoPeca") as string,
       numeroVendaOuCfe: options.formData.get("numeroVendaOuCfe") as string,
       numeroVendaOuCfeFornecedor: (options.formData.get("numeroVendaOuCfeFornecedor") as string) || undefined,
-      dataVenda: toDateOnlyString(options.formData.get("dataVenda") as string),
+      dataVenda: rawDataVenda ? toDateOnlyString(rawDataVenda) : undefined,
       dataRecebendoPeca: toDateOnlyString(options.formData.get("dataRecebendoPeca") as string),
       obs: (options.formData.get("obs") as string) || undefined,
       createdBy: options.session.uid,
-      signatureDataUrl,
+      signatureDataUrl: signatureDataUrl || undefined,
     })
 
     if (!ticketInput.success) {
@@ -352,17 +357,19 @@ export async function createTicketWithUploads(options: {
       options.session.name,
     )
 
-    const base64Data = signatureValue.replace(/^data:image\/png;base64,/, "")
-    const signatureBuffer = Buffer.from(base64Data, "base64")
+    if (signatureValue) {
+      const base64Data = signatureValue.replace(/^data:image\/png;base64,/, "")
+      const signatureBuffer = Buffer.from(base64Data, "base64")
 
-    await addAttachment(ticketId, signatureBuffer, {
-      name: `assinatura_${ticketId}.png`,
-      mimeType: "image/png",
-      size: signatureBuffer.length,
-      category: "ASSINATURA",
-      uploadedBy: options.session.uid,
-      uploadedByName: options.session.name,
-    })
+      await addAttachment(ticketId, signatureBuffer, {
+        name: `assinatura_${ticketId}.png`,
+        mimeType: "image/png",
+        size: signatureBuffer.length,
+        category: "ASSINATURA",
+        uploadedBy: options.session.uid,
+        uploadedByName: options.session.name,
+      })
+    }
 
     const attachmentEntries = options.formData.getAll("attachments")
     const categoryEntries = options.formData.getAll("attachmentCategories")
