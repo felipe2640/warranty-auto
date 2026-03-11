@@ -1,7 +1,8 @@
 "use client"
 
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query"
-import type { Attachment, AuditEntry, Supplier, Store, TenantSettings, Ticket, TimelineEntry, Status } from "@/lib/schemas"
+import type { Attachment, AuditEntry, Supplier, TenantSettings, Ticket, TimelineEntry, Status } from "@/lib/schemas"
+import type { ErpStore } from "@/lib/erp/types"
 import type { NextTransitionChecklist, StageSummary } from "@/lib/types/warranty"
 
 export interface TicketDetailResponse {
@@ -10,7 +11,7 @@ export interface TicketDetailResponse {
   attachments: Attachment[]
   audit: AuditEntry[]
   suppliers: Supplier[]
-  stores: Store[]
+  stores: ErpStore[]
   tenantSettings?: TenantSettings | null
   nextTransitionChecklist: NextTransitionChecklist
   stageSummaryMap: Record<Status, StageSummary>

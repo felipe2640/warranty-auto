@@ -1,6 +1,6 @@
 import { computeDueDate } from "@/lib/domain/warranty/sla"
 import { validateTransition } from "@/lib/domain/warranty/statusMachine"
-import { getStoreById, getSupplierById, getTenantSettings, listStores, listSuppliers } from "@/lib/repositories/admin"
+import { getSupplierById, getTenantSettings, listSuppliers } from "@/lib/repositories/admin"
 import {
   addAttachment,
   addTicketAuditEntry,
@@ -18,6 +18,7 @@ import {
   updateTicketStatus,
   revertTicketStatus,
 } from "@/lib/repositories/tickets"
+import { fetchErpStores, getErpStoreById } from "@/lib/erp/stores"
 import { buildSearchTokens } from "@/lib/search"
 import { DEFAULT_TIMEZONE, addDaysDateOnly, toDateOnlyString, todayDateOnly } from "@/lib/date"
 import type { Role } from "@/lib/roles"
@@ -450,14 +451,14 @@ export async function fetchTicketDetail(options: {
   const [timeline, attachments, stores, suppliers, audit, hasCanhoto, tenantSettings] = await Promise.all([
     getTicketTimeline(options.ticketId),
     getTicketAttachments(options.ticketId),
-    listStores(options.tenantId),
+    fetchErpStores(),
     listSuppliers(options.tenantId),
     options.canSeeAudit ? getTicketAudit(options.ticketId) : Promise.resolve([]),
     hasAttachmentOfCategory(options.ticketId, "CANHOTO"),
     getTenantSettings(options.tenantId),
   ])
 
-  const store = stores.find((s) => s.id === ticket.storeId)
+  const store = stores.find((s) => String(s.id) === ticket.storeId)
   const supplier = ticket.supplierId ? suppliers.find((s) => s.id === ticket.supplierId) : null
 
   const nextTransitionChecklist = buildTransitionChecklist({
@@ -471,7 +472,7 @@ export async function fetchTicketDetail(options: {
   return {
     ticket: {
       ...ticket,
-      storeName: store?.name || "—",
+      storeName: store?.nomeFantasia || "—",
       supplierName: supplier?.name || ticket.supplierName || "—",
     },
     timeline,
@@ -543,11 +544,11 @@ export async function updateTicketDetails(options: {
 
   let storeName: string | undefined
   if (filteredPatch.storeId) {
-    const store = await getStoreById(filteredPatch.storeId as string, options.tenantId)
+    const store = await getErpStoreById(filteredPatch.storeId as string)
     if (!store) {
       return { error: { message: "Loja inválida" }, status: 400 }
     }
-    storeName = store.name
+    storeName = store.nomeFantasia
   }
 
   let supplierName = ticket.supplierName

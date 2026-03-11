@@ -4,6 +4,7 @@ import { userCreateSchema } from "@/lib/schemas"
 import { ADMIN_ROLE } from "@/lib/roles"
 import { formatTenantEmail } from "@/lib/auth/identifier"
 import { createAdminUser, fetchTenantSettings, listAdminUsers } from "@/lib/services/adminService"
+import { getErpStoreById } from "@/lib/erp/stores"
 
 export async function GET() {
   try {
@@ -35,6 +36,13 @@ export async function POST(request: Request) {
     }
 
     const { username, password, name, role, storeId } = validation.data
+    if (storeId) {
+      const store = await getErpStoreById(storeId)
+      if (!store) {
+        return NextResponse.json({ error: "Loja padrão inválida no ERP" }, { status: 400 })
+      }
+    }
+
     const tenantSettings = await fetchTenantSettings(session.tenantId)
     if (!tenantSettings) {
       return NextResponse.json({ error: "Tenant não encontrado" }, { status: 404 })

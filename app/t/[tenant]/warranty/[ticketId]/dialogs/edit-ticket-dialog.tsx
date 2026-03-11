@@ -39,11 +39,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, AlertCircle } from "lucide-react";
 import type {
   Supplier,
-  Store,
   Ticket,
   TimelineEntry,
   UpdateTicketDetailsInput,
 } from "@/lib/schemas";
+import type { ErpStore } from "@/lib/erp/types";
 import { UpdateTicketDetailsSchema } from "@/lib/schemas";
 import { formatCpfCnpj, formatPhoneBR, onlyDigits } from "@/lib/format";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -52,7 +52,7 @@ interface EditTicketDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   ticket: Ticket & { storeName: string; supplierName?: string };
-  stores: Store[];
+  stores: ErpStore[];
   suppliers: Supplier[];
   canEditCustomer: boolean;
   canEditPiece: boolean;
@@ -82,13 +82,14 @@ export function EditTicketDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const activeStores = useMemo(
-    () => stores.filter((store) => store.active || store.id === ticket.storeId),
-    [stores, ticket.storeId],
-  );
   const storeOptions = useMemo(() => {
-    if (activeStores.some((store) => store.id === ticket.storeId)) {
-      return activeStores;
+    const options = stores.map((store) => ({
+      id: String(store.id),
+      name: store.nomeFantasia,
+    }));
+
+    if (options.some((store) => store.id === ticket.storeId)) {
+      return options;
     }
 
     const fallbackName =
@@ -101,12 +102,11 @@ export function EditTicketDialog({
           {
             id: ticket.storeId,
             name: fallbackName || ticket.storeId,
-            active: true,
           },
-          ...activeStores,
+          ...options,
         ]
-      : activeStores;
-  }, [activeStores, ticket.storeId, ticket.storeName]);
+      : options;
+  }, [stores, ticket.storeId, ticket.storeName]);
   const activeSuppliers = useMemo(
     () =>
       suppliers.filter(

@@ -1,8 +1,9 @@
 import { requireTenantSession } from "@/lib/session"
 import { AgendaClient } from "./agenda-client"
-import { fetchSuppliers, fetchStores } from "@/lib/services/adminService"
+import { fetchSuppliers } from "@/lib/services/adminService"
 import { fetchAgendaTickets } from "@/lib/services/warrantyService"
-import type { Ticket, Store } from "@/lib/schemas"
+import type { Ticket } from "@/lib/schemas"
+import { fetchErpStores } from "@/lib/erp/stores"
 
 export default async function AgendaPage({
   params,
@@ -19,12 +20,12 @@ export default async function AgendaPage({
 
   const [suppliers, stores] = await Promise.all([
     fetchSuppliers(tenantId),
-    fetchStores(tenantId),
+    fetchErpStores(),
   ])
 
   // Create store map
   const storeMap = new Map<string, string>()
-  stores.forEach((s: Store) => storeMap.set(s.id, s.name))
+  stores.forEach((store) => storeMap.set(String(store.id), store.nomeFantasia))
 
   // Create supplier map
   const supplierMap = new Map<string, string>()

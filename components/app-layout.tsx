@@ -5,7 +5,8 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { BottomNav } from "@/components/bottom-nav"
 import { Topbar } from "@/components/topbar"
-import type { Role, Store } from "@/lib/schemas"
+import type { Role } from "@/lib/schemas"
+import type { ErpStore } from "@/lib/erp/types"
 
 interface Breadcrumb {
   label: string
@@ -20,7 +21,7 @@ interface AppLayoutProps {
   userRole: Role
   userEmail?: string
   breadcrumbs?: Breadcrumb[]
-  stores?: Store[]
+  stores?: ErpStore[]
   currentStoreId?: string
   onStoreChange?: (storeId: string) => void
   showBackButton?: boolean

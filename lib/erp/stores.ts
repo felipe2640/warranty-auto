@@ -22,3 +22,11 @@ export async function fetchErpStores(): Promise<ErpStore[]> {
     nomeFantasia: row.nome_fantasia,
   }))
 }
+
+export async function getErpStoreById(storeId: string): Promise<ErpStore | null> {
+  const normalizedStoreId = storeId.trim()
+  if (!normalizedStoreId) return null
+
+  const stores = await fetchErpStores()
+  return stores.find((store) => String(store.id) === normalizedStoreId) ?? null
+}

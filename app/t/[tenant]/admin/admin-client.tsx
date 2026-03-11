@@ -14,11 +14,12 @@ import { SuppliersTab } from "./tabs/suppliers-tab"
 import { SettingsTab } from "./tabs/settings-tab"
 import { AuditTab } from "./tabs/audit-tab"
 import { RolesTab } from "./tabs/roles-tab"
-import type { User, Store, Supplier, TenantSettings, Role } from "@/lib/schemas"
+import type { User, Supplier, TenantSettings, Role } from "@/lib/schemas"
+import type { ErpStore } from "@/lib/erp/types"
 
 interface AdminClientProps {
   users: User[]
-  stores: Store[]
+  stores: ErpStore[]
   suppliers: Supplier[]
   settings: TenantSettings
   openTicketsCount: number
@@ -53,7 +54,6 @@ export function AdminClient({
   }
 
   const activeUsers = users.filter((u) => u.active).length
-  const activeStores = stores.filter((s) => s.active).length
   const activeSuppliers = suppliers.filter((s) => s.active).length
   const hasDriveConfig = !!settings.driveRootFolderId
 
@@ -136,8 +136,8 @@ export function AdminClient({
                       <Building2 className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{activeStores}</div>
-                      <p className="text-xs text-muted-foreground">{stores.length} total</p>
+                      <div className="text-2xl font-bold">{stores.length}</div>
+                      <p className="text-xs text-muted-foreground">sincronizadas do ERP</p>
                     </CardContent>
                   </Card>
 
@@ -200,8 +200,8 @@ export function AdminClient({
                       className="h-auto py-4 flex-col gap-2 bg-transparent"
                       onClick={() => handleTabChange("stores")}
                     >
-                      <Plus className="h-5 w-5" />
-                      <span>Criar Loja</span>
+                      <Building2 className="h-5 w-5" />
+                      <span>Ver Lojas ERP</span>
                     </Button>
                   </CardContent>
                 </Card>

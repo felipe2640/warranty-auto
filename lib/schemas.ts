@@ -83,27 +83,6 @@ export const UserSchema = z.object({
 })
 export type User = z.infer<typeof UserSchema>
 
-// Store schema
-export const StoreSchema = z.object({
-  id: z.string(),
-  name: z.string().min(1),
-  code: z.string().min(1).optional(),
-  cnpj: z
-    .string()
-    .optional()
-    .transform((value) => (value ? onlyDigits(value).slice(0, 14) : value)),
-  address: z.string().optional(),
-  phone: z
-    .string()
-    .optional()
-    .transform((value) => (value ? onlyDigits(value).slice(0, 11) : value)),
-  tenantId: z.string(),
-  active: z.boolean().default(true),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-})
-export type Store = z.infer<typeof StoreSchema>
-
 // Supplier schema
 export const SupplierSchema = z.object({
   id: z.string(),
@@ -445,7 +424,6 @@ export const userCreateSchema = z.object({
   storeId: z.string().optional().nullable(),
 })
 
-export const storeSchema = StoreSchema
 export const supplierSchema = SupplierSchema
 
 export function normalizeCpfCnpj(value: string) {

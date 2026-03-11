@@ -25,7 +25,8 @@ import { AppLayout } from "@/components/app-layout"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Calendar, Phone, Building2, Loader2, CheckCircle, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react"
-import type { Ticket, Supplier, Role, Store } from "@/lib/schemas"
+import type { Ticket, Supplier, Role } from "@/lib/schemas"
+import type { ErpStore } from "@/lib/erp/types"
 import { ACTION_KIND_META, type ActionKind } from "@/lib/ui/actionKinds"
 import { formatCpfCnpj, formatPhoneBR, onlyDigits } from "@/lib/format"
 import { addDaysDateOnly, diffDaysDateOnly, formatDateOnly, toDateOnlyString, todayDateOnly } from "@/lib/date"
@@ -41,7 +42,7 @@ interface GroupedTickets {
 interface AgendaClientProps {
   grouped: GroupedTickets
   suppliers: Supplier[]
-  stores: Store[]
+  stores: ErpStore[]
   tenant: string
   tenantName?: string
   userName: string
@@ -170,7 +171,7 @@ export function AgendaClient({
   const OverdueIcon = ACTION_KIND_META.OVERDUE.icon
   const Next7Icon = ACTION_KIND_META.NEXT_7_DAYS.icon
 
-  const storeMap = useMemo(() => new Map(stores.map((store) => [store.id, store])), [stores])
+  const storeMap = useMemo(() => new Map(stores.map((store) => [String(store.id), store])), [stores])
   const supplierMap = useMemo(() => new Map(suppliers.map((supplier) => [supplier.id, supplier])), [suppliers])
 
   const handleTabChange = (value: string) => {
@@ -196,7 +197,7 @@ export function AgendaClient({
 
   const getStoreName = useCallback((storeId?: string) => {
     if (!storeId) return "—"
-    return storeMap.get(storeId)?.name || "—"
+    return storeMap.get(storeId)?.nomeFantasia || "—"
   }, [storeMap])
 
   const getSupplierName = useCallback((supplierId?: string) => {

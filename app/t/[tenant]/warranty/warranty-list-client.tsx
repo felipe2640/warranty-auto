@@ -12,7 +12,8 @@ import { AppLayout } from "@/components/app-layout"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Search, Plus, Filter, X, AlertTriangle, Grid, List } from "lucide-react"
-import { StatusEnum, type Ticket, type Store, type Status, type Role } from "@/lib/schemas"
+import { StatusEnum, type Ticket, type Status, type Role } from "@/lib/schemas"
+import type { ErpStore } from "@/lib/erp/types"
 import { formatCpfCnpj, formatDateBR, formatPhoneBR } from "@/lib/format"
 import { formatDateOnly, todayDateOnly } from "@/lib/date"
 
@@ -22,12 +23,11 @@ function formatClientContact(cpfCnpj?: string, phone?: string) {
 
 interface WarrantyListClientProps {
   tickets: Ticket[]
-  stores: Store[]
+  stores: ErpStore[]
   tenant: string
   tenantName?: string
   userName: string
   userRole: Role
-  userStoreId?: string
   initialFilters: {
     status?: string
     storeId?: string
@@ -47,7 +47,6 @@ export function WarrantyListClient({
   tenantName,
   userName,
   userRole,
-  userStoreId,
   initialFilters,
   nextCursor,
 }: WarrantyListClientProps) {
@@ -110,7 +109,7 @@ export function WarrantyListClient({
   }
 
   const getStoreName = (storeId: string) => {
-    return stores.find((s) => s.id === storeId)?.name || storeId
+    return stores.find((store) => String(store.id) === storeId)?.nomeFantasia || storeId
   }
 
   return (
@@ -119,7 +118,6 @@ export function WarrantyListClient({
       tenantName={tenantName}
       userName={userName}
       userRole={userRole}
-      userStoreId={userStoreId}
       breadcrumbs={[{ label: "Garantias", href: `/t/${tenant}/warranty` }]}
       title="Garantias"
       stores={userRole !== "RECEBEDOR" ? stores : undefined}
@@ -180,8 +178,8 @@ export function WarrantyListClient({
                       <SelectContent>
                         <SelectItem value="all">Todas Lojas</SelectItem>
                         {stores.map((store) => (
-                          <SelectItem key={store.id} value={store.id}>
-                            {store.name}
+                          <SelectItem key={store.id} value={String(store.id)}>
+                            {store.nomeFantasia}
                           </SelectItem>
                         ))}
                       </SelectContent>

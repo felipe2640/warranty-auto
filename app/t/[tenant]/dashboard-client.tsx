@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/ui/status-badge"
 import { AppLayout } from "@/components/app-layout"
 import { AlertTriangle, Inbox, FileSearch, Truck, Phone, CheckCircle, Plus, ArrowRight } from "lucide-react"
-import type { Ticket, Status, Store, Role } from "@/lib/schemas"
+import type { Ticket, Status, Role } from "@/lib/schemas"
+import type { ErpStore } from "@/lib/erp/types"
 import { ACTION_KIND_META } from "@/lib/ui/actionKinds"
 import { diffDaysDateOnly, formatDateOnly, todayDateOnly } from "@/lib/date"
 
@@ -23,7 +24,7 @@ interface DashboardStats {
 
 interface DashboardClientProps {
   stats: DashboardStats
-  stores: Store[]
+  stores: ErpStore[]
   tenant: string
   tenantName?: string
   userName: string

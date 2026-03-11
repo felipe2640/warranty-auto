@@ -1,8 +1,9 @@
 import { requireTenantSession } from "@/lib/session"
 import { WarrantyListClient } from "./warranty-list-client"
-import type { Ticket, Store } from "@/lib/schemas"
-import { fetchTenantSettings, fetchStores } from "@/lib/services/adminService"
+import type { Ticket } from "@/lib/schemas"
+import { fetchTenantSettings } from "@/lib/services/adminService"
 import { fetchWarrantyList } from "@/lib/services/warrantyService"
+import { fetchErpStores } from "@/lib/erp/stores"
 
 interface SearchParams {
   status?: string
@@ -24,11 +25,9 @@ export default async function WarrantyListPage({
   const { session, tenantId, tenantName } = await requireTenantSession(tenant)
 
   const [stores, tenantSettings] = await Promise.all([
-    fetchStores(tenantId),
+    fetchErpStores(),
     fetchTenantSettings(tenantId),
   ])
-
-  const activeStores = stores.filter((store) => store.active)
 
   const effectiveStoreId =
     session.role === "RECEBEDOR" && tenantSettings?.policies.recebedorOnlyOwnStore
@@ -48,12 +47,11 @@ export default async function WarrantyListPage({
   return (
     <WarrantyListClient
       tickets={tickets}
-      stores={activeStores}
+      stores={stores}
       tenant={tenant}
       tenantName={tenantSettings?.name || tenantName}
       userName={session.name}
       userRole={session.role}
-      userStoreId={session.storeId}
       initialFilters={filters}
       nextCursor={nextCursor}
     />

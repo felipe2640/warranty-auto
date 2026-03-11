@@ -18,7 +18,8 @@ import { AddAttachmentDialog } from "./dialogs/add-attachment-dialog"
 import { SetSupplierDialog } from "./dialogs/set-supplier-dialog"
 import { EditTicketDialog } from "./dialogs/edit-ticket-dialog"
 import { getUserPermissions } from "@/lib/permissions"
-import type { Ticket, TimelineEntry, Attachment, AuditEntry, Supplier, Role, Status, Store, TenantSettings } from "@/lib/schemas"
+import type { Ticket, TimelineEntry, Attachment, AuditEntry, Supplier, Role, Status, TenantSettings } from "@/lib/schemas"
+import type { ErpStore } from "@/lib/erp/types"
 import type { NextTransitionChecklist, StageSummary } from "@/lib/types/warranty"
 import { ArrowLeft, ChevronRight, Plus, Paperclip, RotateCcw, AlertTriangle, Calendar, Pencil } from "lucide-react"
 import { todayDateOnly } from "@/lib/date"
@@ -31,7 +32,7 @@ interface TicketDetailClientProps {
   attachments: Attachment[]
   audit: AuditEntry[]
   suppliers: Supplier[]
-  stores: Store[]
+  stores: ErpStore[]
   tenantSettings?: TenantSettings | null
   userRole: Role
   userId: string

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { requireTenantSession } from "@/lib/session"
 import { listTickets } from "@/lib/repositories/tickets"
-import { getTenantSettings, listStores } from "@/lib/repositories/admin"
+import { getTenantSettings } from "@/lib/repositories/admin"
+import { fetchErpStores } from "@/lib/erp/stores"
 import { getUserPermissions } from "@/lib/permissions"
 import { createTicketWithUploads } from "@/lib/services/warrantyService"
 import { type Status } from "@/lib/schemas"
@@ -71,8 +72,8 @@ export async function GET(request: Request) {
     const result = await listTickets(options)
 
     // Get store names for display
-    const stores = await listStores(tenantId)
-    const storeMap = new Map(stores.map((s) => [s.id, s.name]))
+    const stores = await fetchErpStores()
+    const storeMap = new Map(stores.map((store) => [String(store.id), store.nomeFantasia]))
 
     const ticketsWithStoreNames = result.tickets.map((ticket) => ({
       ...ticket,

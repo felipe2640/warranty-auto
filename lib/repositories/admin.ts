@@ -1,5 +1,5 @@
 import { getAdminAuth, getAdminDb } from "../firebase/admin"
-import type { User, Store, Supplier, TenantSettings } from "../schemas"
+import type { User, Supplier, TenantSettings } from "../schemas"
 import type { FirebaseFirestore } from "firebase-admin/firestore"
 
 function stripUndefined<T extends Record<string, unknown>>(data: T): T {
@@ -104,74 +104,6 @@ export async function updateUser(userId: string, data: Partial<User>): Promise<v
 
 export async function generatePasswordResetLink(email: string): Promise<string> {
   return getAdminAuth().generatePasswordResetLink(email)
-}
-
-// Stores
-export async function listStores(tenantId: string): Promise<Store[]> {
-  let snapshot: FirebaseFirestore.QuerySnapshot
-
-  try {
-    snapshot = await getAdminDb().collection("stores").where("tenantId", "==", tenantId).orderBy("name").get()
-  } catch (error) {
-    if (!isMissingIndexError(error)) {
-      throw error
-    }
-    snapshot = await getAdminDb().collection("stores").where("tenantId", "==", tenantId).get()
-  }
-
-  const stores = snapshot.docs.map((doc) => {
-    const data = doc.data()
-    return {
-      id: doc.id,
-      name: data.name,
-      code: data.code,
-      cnpj: data.cnpj,
-      address: data.address,
-      phone: data.phone,
-      tenantId: data.tenantId,
-      active: data.active,
-      createdAt: toDate(data.createdAt)!,
-      updatedAt: toDate(data.updatedAt)!,
-    }
-  })
-
-  return stores.sort(byNameAsc)
-}
-
-export async function getStoreById(storeId: string, tenantId: string): Promise<Store | null> {
-  const doc = await getAdminDb().collection("stores").doc(storeId).get()
-  if (!doc.exists) return null
-
-  const data = doc.data()!
-  if (data.tenantId !== tenantId) return null
-
-  return {
-    id: doc.id,
-    name: data.name,
-    code: data.code,
-    cnpj: data.cnpj,
-    address: data.address,
-    phone: data.phone,
-    tenantId: data.tenantId,
-    active: data.active,
-    createdAt: toDate(data.createdAt)!,
-    updatedAt: toDate(data.updatedAt)!,
-  }
-}
-
-export async function createStore(data: Omit<Store, "id" | "createdAt" | "updatedAt">): Promise<string> {
-  const now = new Date()
-  const docRef = await getAdminDb()
-    .collection("stores")
-    .add(stripUndefined({ ...data, createdAt: now, updatedAt: now }))
-  return docRef.id
-}
-
-export async function updateStore(storeId: string, data: Partial<Store>): Promise<void> {
-  await getAdminDb()
-    .collection("stores")
-    .doc(storeId)
-    .update(stripUndefined({ ...data, updatedAt: new Date() }))
 }
 
 // Suppliers

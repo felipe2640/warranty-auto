@@ -1,10 +1,7 @@
 import {
-  createStore,
   createSupplier,
   listUsers,
-  listStores,
   listSuppliers,
-  updateStore,
   updateSupplier,
   getTenantBySlug,
   getTenantSettings,
@@ -13,7 +10,7 @@ import {
 } from "@/lib/repositories/admin"
 import { listTickets } from "@/lib/repositories/tickets"
 import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin"
-import type { TenantSettings, Store, Supplier, User } from "@/lib/schemas"
+import type { TenantSettings, Supplier, User } from "@/lib/schemas"
 import { driveClient } from "@/lib/drive/client"
 
 function isMissingIndexError(error: unknown) {
@@ -30,10 +27,6 @@ export async function fetchTenantBySlug(slug: string): Promise<TenantSettings | 
 
 export async function fetchTenantSettings(tenantId: string): Promise<TenantSettings | null> {
   return getTenantSettings(tenantId)
-}
-
-export async function fetchStores(tenantId: string): Promise<Store[]> {
-  return listStores(tenantId)
 }
 
 export async function fetchSuppliers(tenantId: string): Promise<Supplier[]> {
@@ -183,23 +176,6 @@ export async function generateUserPasswordResetLink(options: { tenantId: string;
 
   const resetLink = await getAdminAuth().generatePasswordResetLink(email)
   return { resetLink }
-}
-
-export async function listAdminStores(tenantId: string): Promise<Store[]> {
-  return listStores(tenantId)
-}
-
-export async function createAdminStore(options: { tenantId: string; data: Omit<Store, "id" | "createdAt" | "updatedAt"> }) {
-  return createStore(options.data)
-}
-
-export async function updateAdminStore(options: { tenantId: string; storeId: string; updates: Partial<Store> }) {
-  const doc = await getAdminDb().collection("stores").doc(options.storeId).get()
-  if (!doc.exists || doc.data()?.tenantId !== options.tenantId) {
-    return null
-  }
-  await updateStore(options.storeId, options.updates)
-  return { success: true }
 }
 
 export async function listAdminSuppliers(tenantId: string): Promise<Supplier[]> {

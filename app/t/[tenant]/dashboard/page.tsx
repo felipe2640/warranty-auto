@@ -1,6 +1,6 @@
 import { requireTenantSession } from "@/lib/session"
 import { fetchDashboardData } from "@/lib/services/warrantyService"
-import { fetchStores } from "@/lib/services/adminService"
+import { fetchErpStores } from "@/lib/erp/stores"
 import { DashboardClient } from "../dashboard-client"
 import type { Ticket, Status } from "@/lib/schemas"
 
@@ -18,8 +18,8 @@ export default async function DashboardPage({ params }: { params: Promise<{ tena
   const { tenant } = await params
   const { session, tenantId, tenantName } = await requireTenantSession(tenant)
 
-  const stores = await fetchStores(tenantId)
-  const storeMap = new Map(stores.map((store) => [store.id, store.name]))
+  const stores = await fetchErpStores()
+  const storeMap = new Map(stores.map((store) => [String(store.id), store.nomeFantasia]))
 
   const { counts, todayTickets, overdueTickets } = await fetchDashboardData({
     tenantId,

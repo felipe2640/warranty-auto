@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "@/lib/session"
 import { ADMIN_ROLE } from "@/lib/roles"
 import { deleteAdminUser, updateAdminUser } from "@/lib/services/adminService"
+import { getErpStoreById } from "@/lib/erp/stores"
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,6 +13,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { id } = await params
     const body = await request.json()
+
+    if (typeof body.storeId === "string" && body.storeId.trim()) {
+      const store = await getErpStoreById(body.storeId)
+      if (!store) {
+        return NextResponse.json({ error: "Loja padrão inválida no ERP" }, { status: 400 })
+      }
+    }
 
     const result = await updateAdminUser({
       tenantId: session.tenantId,

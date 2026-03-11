@@ -16,7 +16,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ChevronRight, User, LogOut, ArrowLeft, LifeBuoy } from "lucide-react"
-import type { Role, Store } from "@/lib/schemas"
+import type { Role } from "@/lib/schemas"
+import type { ErpStore } from "@/lib/erp/types"
 
 interface Breadcrumb {
   label: string
@@ -29,7 +30,7 @@ interface TopbarProps {
   userName: string
   userRole: Role
   breadcrumbs?: Breadcrumb[]
-  stores?: Store[]
+  stores?: ErpStore[]
   currentStoreId?: string
   onStoreChange?: (storeId: string) => void
   showBackButton?: boolean
@@ -115,8 +116,8 @@ export function Topbar({
           <SelectContent>
             <SelectItem value="all">Todas as lojas</SelectItem>
             {stores.map((store) => (
-              <SelectItem key={store.id} value={store.id}>
-                {store.name}
+              <SelectItem key={store.id} value={String(store.id)}>
+                {store.nomeFantasia}
               </SelectItem>
             ))}
           </SelectContent>
