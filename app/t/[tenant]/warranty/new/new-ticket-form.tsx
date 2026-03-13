@@ -36,6 +36,50 @@ interface NewTicketFormProps {
   userStoreId?: string
 }
 
+const GENERIC_REQUIRED_MESSAGES = new Set([
+  "Campo obrigatório",
+  "Required",
+  "Invalid input: expected string, received undefined",
+  "Invalid input: expected number, received undefined",
+  "Invalid input: expected boolean, received undefined",
+])
+
+const FORM_FIELD_MESSAGES: Partial<Record<keyof CreateTicketFormData, string>> = {
+  ticketType: "Tipo de ticket é obrigatório",
+  nomeRazaoSocial: "Nome/Razão Social é obrigatório",
+  cpfCnpj: "CPF/CNPJ é obrigatório",
+  celular: "Celular é obrigatório",
+  descricaoPeca: "Descrição da peça é obrigatória",
+  quantidade: "Quantidade mínima é 1",
+  codigo: "Código do produto é obrigatório",
+  defeitoPeca: "Defeito é obrigatório",
+  numeroVendaOuCfe: "Número da venda/CFe é obrigatório",
+  dataVenda: "Data da venda é obrigatória",
+  dataRecebendoPeca: "Data de recebimento é obrigatória",
+  erpStoreId: "Loja é obrigatória",
+  signatureDataUrl: "Assinatura é obrigatória",
+}
+
+function resolveFieldIssueMessage(field: keyof CreateTicketFormData | undefined, message?: string) {
+  if (!field) return message || "Campo obrigatório"
+  if (!message || GENERIC_REQUIRED_MESSAGES.has(message)) {
+    return FORM_FIELD_MESSAGES[field] || "Campo obrigatório"
+  }
+  return message
+}
+
+function collectFormIssueMessages(formErrors: FieldErrors<CreateTicketFormData>) {
+  const issues = new Set<string>()
+
+  Object.entries(formErrors).forEach(([field, err]) => {
+    if (!err || typeof err !== "object") return
+    const message = "message" in err && typeof err.message === "string" ? err.message : undefined
+    issues.add(resolveFieldIssueMessage(field as keyof CreateTicketFormData, message))
+  })
+
+  return Array.from(issues)
+}
+
 export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -77,6 +121,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
       quantidade: 1,
       isWhatsapp: false,
       dataRecebendoPeca: todayDateOnly(),
+      signatureDataUrl: "",
     },
     mode: "onBlur",
     shouldUnregister: true,
@@ -137,7 +182,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
     setValue("celular", undefined)
     setValue("isWhatsapp", false)
     setValue("dataVenda", undefined)
-    setValue("signatureDataUrl", undefined)
+    setValue("signatureDataUrl", "", { shouldValidate: true })
     setProductCode("") // CHG-20250929-15: reset product search for store tickets
     setSelectedProduct(null)
     setProductSearchError(null)
@@ -170,12 +215,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
     }
 
     if (formErrors) {
-      Object.values(formErrors).forEach((err) => {
-        const message = err?.message
-        if (message) {
-          issues.add(message)
-        }
-      })
+      collectFormIssueMessages(formErrors).forEach((message) => issues.add(message))
     }
 
     return Array.from(issues)
@@ -251,14 +291,17 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
       if (!response.ok) {
         const result = await response.json().catch(() => ({}))
         const errorPayload = result?.error
-        const message = typeof errorPayload === "string" ? errorPayload : errorPayload?.message
         const field = typeof errorPayload === "object" ? errorPayload?.field : undefined
+        const message = resolveFieldIssueMessage(
+          typeof field === "string" ? (field as keyof CreateTicketFormData) : undefined,
+          typeof errorPayload === "string" ? errorPayload : errorPayload?.message,
+        )
 
         if (field && typeof field === "string") {
-          setFormError(field as keyof CreateTicketFormData, { message: message || "Campo obrigatório" })
+          setFormError(field as keyof CreateTicketFormData, { message })
         }
 
-        setSubmitIssues(message ? [message] : ["Erro ao criar ticket"])
+        setSubmitIssues([message || "Erro ao criar ticket"])
         throw new Error(message || "Erro ao criar ticket")
       }
 
@@ -369,13 +412,13 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   const handleSignatureSave = (dataUrl: string) => {
     setSignatureDataUrl(dataUrl)
     setSignatureSaved(true)
-    setValue("signatureDataUrl", dataUrl)
+    setValue("signatureDataUrl", dataUrl, { shouldValidate: true })
   }
 
   const handleSignatureClear = () => {
     setSignatureDataUrl(null)
     setSignatureSaved(false)
-    setValue("signatureDataUrl", "")
+    setValue("signatureDataUrl", "", { shouldValidate: true })
   }
 
   const accordionDefaults =
@@ -383,6 +426,10 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
+      <input type="hidden" {...register("ticketType")} />
+      <input type="hidden" {...register("erpStoreId")} />
+      <input type="hidden" {...register("signatureDataUrl")} />
+
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />

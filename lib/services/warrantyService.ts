@@ -295,7 +295,14 @@ export async function createTicketWithUploads(options: {
       }
     }
 
-    const ticketType = (options.formData.get("ticketType") as string) || "WARRANTY"
+    const ticketType = options.formData.get("ticketType") as string | null
+    if (ticketType !== "WARRANTY" && ticketType !== "WARRANTY_STORE") {
+      return {
+        error: { code: "MISSING_TICKET_TYPE", message: "Tipo de ticket é obrigatório", field: "ticketType" },
+        status: 400,
+      }
+    }
+
     const signatureDataUrl = options.formData.get("signatureDataUrl") as string | null
     const requiresSignature = ticketType === "WARRANTY"
 
@@ -311,10 +318,20 @@ export async function createTicketWithUploads(options: {
     const rawNomeFantasiaApelido = options.formData.get("nomeFantasiaApelido") as string | null
     const rawCpfCnpj = options.formData.get("cpfCnpj") as string | null
     const rawCelular = options.formData.get("celular") as string | null
+    const rawErpStoreId = options.formData.get("erpStoreId") as string | null
+
+    const store = rawErpStoreId ? await getErpStoreById(rawErpStoreId) : null
+    if (!store) {
+      return {
+        error: { code: "INVALID_STORE", message: "Loja inválida no ERP", field: "erpStoreId" },
+        status: 400,
+      }
+    }
+
     const ticketInput = CreateTicketInputSchema.safeParse({
       ticketType, // CHG-20250929-04
       tenantId: options.tenantId,
-      erpStoreId: options.formData.get("erpStoreId") as string,
+      erpStoreId: rawErpStoreId,
       nomeRazaoSocial: rawNomeRazaoSocial?.trim() || undefined,
       nomeFantasiaApelido: rawNomeFantasiaApelido?.trim() || undefined,
       cpfCnpj: rawCpfCnpj ? normalizeCpfCnpj(rawCpfCnpj) : undefined,
