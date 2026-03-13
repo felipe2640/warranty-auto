@@ -318,6 +318,7 @@ export async function createTicketWithUploads(options: {
     const rawNomeFantasiaApelido = options.formData.get("nomeFantasiaApelido") as string | null
     const rawCpfCnpj = options.formData.get("cpfCnpj") as string | null
     const rawCelular = options.formData.get("celular") as string | null
+    const rawNumeroVendaOuCfe = options.formData.get("numeroVendaOuCfe") as string | null
     const rawErpStoreId = options.formData.get("erpStoreId") as string | null
 
     const store = rawErpStoreId ? await getErpStoreById(rawErpStoreId) : null
@@ -342,7 +343,7 @@ export async function createTicketWithUploads(options: {
       ref: (options.formData.get("ref") as string) || undefined,
       codigo: (options.formData.get("codigo") as string) || undefined,
       defeitoPeca: options.formData.get("defeitoPeca") as string,
-      numeroVendaOuCfe: options.formData.get("numeroVendaOuCfe") as string,
+      numeroVendaOuCfe: rawNumeroVendaOuCfe?.trim() || undefined,
       numeroVendaOuCfeFornecedor: (options.formData.get("numeroVendaOuCfeFornecedor") as string) || undefined,
       dataVenda: rawDataVenda ? toDateOnlyString(rawDataVenda) : undefined,
       dataRecebendoPeca: toDateOnlyString(options.formData.get("dataRecebendoPeca") as string),

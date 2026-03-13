@@ -222,13 +222,34 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   }
 
   const onSubmit = async (data: CreateTicketFormData) => {
-    const clientIssues = buildSubmitIssues(data.ticketType) // CHG-20250929-13: skip NFC-e checks for store tickets
+    const effectiveTicketType = watchTicketType || data.ticketType
+    const effectiveStoreId = watchErpStoreId || data.erpStoreId
+    const normalizedSaleNumber =
+      effectiveTicketType === "WARRANTY"
+        ? data.numeroVendaOuCfe?.trim() || onlyDigits(nfeId)
+        : data.numeroVendaOuCfe?.trim()
+
+    if (
+      effectiveTicketType === "WARRANTY" &&
+      normalizedSaleNumber &&
+      data.numeroVendaOuCfe?.trim() !== normalizedSaleNumber
+    ) {
+      setValue("numeroVendaOuCfe", normalizedSaleNumber, { shouldValidate: true })
+    }
+
+    const clientIssues = buildSubmitIssues(effectiveTicketType) // CHG-20250929-13: skip NFC-e checks for store tickets
     if (clientIssues.length > 0) {
       setSubmitIssues(clientIssues)
       return
     }
 
-    if (data.ticketType === "WARRANTY" && !signatureDataUrl) {
+    if (effectiveTicketType === "WARRANTY" && !normalizedSaleNumber) {
+      setFormError("numeroVendaOuCfe", { message: FORM_FIELD_MESSAGES.numeroVendaOuCfe })
+      setSubmitIssues([FORM_FIELD_MESSAGES.numeroVendaOuCfe || "Número da venda/CFe é obrigatório"])
+      return
+    }
+
+    if (effectiveTicketType === "WARRANTY" && !signatureDataUrl) {
       setSubmitIssues(["Assinatura é obrigatória"])
       return
     }
@@ -261,11 +282,17 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
         }
       }
 
-      const isStoreTicket = data.ticketType === "WARRANTY_STORE"
+      const isStoreTicket = effectiveTicketType === "WARRANTY_STORE"
       const customerFields = new Set(["nomeRazaoSocial", "nomeFantasiaApelido", "cpfCnpj", "celular", "isWhatsapp"])
       // Add all form fields
       formData.append("tenantSlug", tenant)
+      formData.append("ticketType", effectiveTicketType)
+      formData.append("erpStoreId", effectiveStoreId || "")
+      if (normalizedSaleNumber) {
+        formData.append("numeroVendaOuCfe", normalizedSaleNumber)
+      }
       Object.entries(data).forEach(([key, value]) => {
+        if (key === "ticketType" || key === "erpStoreId" || key === "numeroVendaOuCfe") return
         if (isStoreTicket && customerFields.has(key)) return // CHG-20250929-06: omit customer fields for store tickets
         if (value !== undefined && value !== null && value !== "") {
           formData.append(key, String(value))
