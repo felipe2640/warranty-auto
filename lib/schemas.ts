@@ -88,6 +88,7 @@ export const SupplierSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   slaDays: z.number().int().min(1),
+  erpSupplierId: z.string().optional(),
   cnpj: z
     .string()
     .optional()

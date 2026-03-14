@@ -3,34 +3,35 @@
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, AlertCircle } from "lucide-react"
-import type { Supplier } from "@/lib/schemas"
+import type { Supplier, Ticket } from "@/lib/schemas"
+import { ErpSupplierResolutionDialog } from "./erp-supplier-resolution-dialog"
 
 interface SetSupplierDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  ticketId: string
+  ticket: Ticket
   suppliers: Supplier[]
   onSuccess: () => void
 }
 
-export function SetSupplierDialog({ open, onOpenChange, ticketId, suppliers, onSuccess }: SetSupplierDialogProps) {
-  const [supplierId, setSupplierId] = useState<string>("")
+export function SetSupplierDialog({ open, onOpenChange, ticket, suppliers, onSuccess }: SetSupplierDialogProps) {
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showResolverDialog, setShowResolverDialog] = useState(false)
 
   const resetState = () => {
-    setSupplierId("")
+    setSelectedSupplier(null)
     setError(null)
     setIsSubmitting(false)
+    setShowResolverDialog(false)
   }
 
   const handleSave = async () => {
-    if (!supplierId) {
-      setError("Selecione um fornecedor")
+    if (!selectedSupplier) {
+      setError("Selecione um fornecedor do ERP")
       return
     }
 
@@ -38,10 +39,10 @@ export function SetSupplierDialog({ open, onOpenChange, ticketId, suppliers, onS
     setError(null)
 
     try {
-      const response = await fetch(`/api/tickets/${ticketId}/status`, {
+      const response = await fetch(`/api/tickets/${ticket.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "advance", supplierId }),
+        body: JSON.stringify({ supplierId: selectedSupplier.id }),
       })
 
       const data = await response.json()
@@ -83,27 +84,28 @@ export function SetSupplierDialog({ open, onOpenChange, ticketId, suppliers, onS
           </Alert>
         )}
 
-        <div className="space-y-2 py-2">
-          <Label>Fornecedor</Label>
-          <Select value={supplierId} onValueChange={setSupplierId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione o fornecedor" />
-            </SelectTrigger>
-            <SelectContent>
-              {suppliers.map((supplier) => (
-                <SelectItem key={supplier.id} value={supplier.id}>
-                  {supplier.name} (SLA: {supplier.slaDays}d)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="space-y-3 py-2">
+          <Button type="button" variant="outline" onClick={() => setShowResolverDialog(true)}>
+            Selecionar no ERP
+          </Button>
+
+          {selectedSupplier ? (
+            <div className="rounded-lg border p-3 text-sm">
+              <div className="font-medium">{selectedSupplier.name}</div>
+              <div className="text-muted-foreground">SLA {selectedSupplier.slaDays} dias</div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              O fornecedor é resolvido pelo ERP a partir do código do produto do ticket.
+            </p>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={isSubmitting || !supplierId}>
+          <Button onClick={handleSave} disabled={isSubmitting || !selectedSupplier}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -115,6 +117,19 @@ export function SetSupplierDialog({ open, onOpenChange, ticketId, suppliers, onS
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <ErpSupplierResolutionDialog
+        open={showResolverDialog}
+        onOpenChange={setShowResolverDialog}
+        productCode={ticket.codigo}
+        productDescription={ticket.descricaoPeca}
+        localSuppliers={suppliers}
+        initialLocalSupplierId={ticket.supplierId}
+        onResolved={(supplier) => {
+          setSelectedSupplier(supplier)
+          setError(null)
+        }}
+      />
     </Dialog>
   )
 }

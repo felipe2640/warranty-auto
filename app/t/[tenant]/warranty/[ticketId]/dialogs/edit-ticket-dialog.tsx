@@ -47,6 +47,7 @@ import type { ErpStore } from "@/lib/erp/types";
 import { UpdateTicketDetailsSchema } from "@/lib/schemas";
 import { formatCpfCnpj, formatPhoneBR, onlyDigits } from "@/lib/format";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ErpSupplierResolutionDialog } from "./erp-supplier-resolution-dialog";
 
 interface EditTicketDialogProps {
   open: boolean;
@@ -81,6 +82,8 @@ export function EditTicketDialog({
   const isMobile = useIsMobile();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resolvedSupplier, setResolvedSupplier] = useState<Supplier | null>(null);
+  const [showResolverDialog, setShowResolverDialog] = useState(false);
 
   const storeOptions = useMemo(() => {
     const options = stores.map((store) => ({
@@ -109,10 +112,12 @@ export function EditTicketDialog({
   }, [stores, ticket.storeId, ticket.storeName]);
   const activeSuppliers = useMemo(
     () =>
-      suppliers.filter(
-        (supplier) => supplier.active || supplier.id === ticket.supplierId,
+      [...suppliers, ...(resolvedSupplier ? [resolvedSupplier] : [])].filter(
+        (supplier, index, list) =>
+          (supplier.active || supplier.id === ticket.supplierId || supplier.id === resolvedSupplier?.id) &&
+          list.findIndex((item) => item.id === supplier.id) === index,
       ),
-    [suppliers, ticket.supplierId],
+    [resolvedSupplier, suppliers, ticket.supplierId],
   );
 
   const {
@@ -185,6 +190,8 @@ export function EditTicketDialog({
   useEffect(() => {
     if (!open) {
       setError(null);
+      setResolvedSupplier(null);
+      setShowResolverDialog(false);
     }
   }, [open]);
 
@@ -540,6 +547,13 @@ export function EditTicketDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowResolverDialog(true)}
+                  >
+                    Buscar no ERP
+                  </Button>
                 </div>
               )}
             </AccordionContent>
@@ -572,27 +586,57 @@ export function EditTicketDialog({
 
   if (isMobile) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="h-[90vh]">
-          <SheetHeader>
-            <SheetTitle>Editar ticket</SheetTitle>
-          </SheetHeader>
-          <ScrollArea className="mt-4 h-[calc(90vh-4.5rem)] pr-4">
-            {content}
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
+      <>
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent side="bottom" className="h-[90vh]">
+            <SheetHeader>
+              <SheetTitle>Editar ticket</SheetTitle>
+            </SheetHeader>
+            <ScrollArea className="mt-4 h-[calc(90vh-4.5rem)] pr-4">
+              {content}
+            </ScrollArea>
+          </SheetContent>
+        </Sheet>
+
+        <ErpSupplierResolutionDialog
+          open={showResolverDialog}
+          onOpenChange={setShowResolverDialog}
+          productCode={watch("codigo")}
+          productDescription={watch("descricaoPeca")}
+          localSuppliers={suppliers}
+          initialLocalSupplierId={watch("supplierId")}
+          onResolved={(supplier) => {
+            setResolvedSupplier(supplier);
+            setValue("supplierId", supplier.id, { shouldValidate: true });
+          }}
+        />
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Editar ticket</DialogTitle>
-        </DialogHeader>
-        <ScrollArea className="max-h-[70vh] pr-4">{content}</ScrollArea>
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar ticket</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[70vh] pr-4">{content}</ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      <ErpSupplierResolutionDialog
+        open={showResolverDialog}
+        onOpenChange={setShowResolverDialog}
+        productCode={watch("codigo")}
+        productDescription={watch("descricaoPeca")}
+        localSuppliers={suppliers}
+        initialLocalSupplierId={watch("supplierId")}
+        onResolved={(supplier) => {
+          setResolvedSupplier(supplier);
+          setValue("supplierId", supplier.id, { shouldValidate: true });
+        }}
+      />
+    </>
   );
 }

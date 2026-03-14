@@ -12,6 +12,7 @@ import type { Ticket, Supplier, Status, TimelineEntry } from "@/lib/schemas"
 import type { NextTransitionChecklist, TransitionChecklistItem } from "@/lib/types/warranty"
 import { formatDateBR } from "@/lib/format"
 import { Loader2, AlertCircle, ChevronRight, Check, X } from "lucide-react"
+import { ErpSupplierResolutionDialog } from "./erp-supplier-resolution-dialog"
 
 interface AdvanceStageDialogProps {
   open: boolean
@@ -56,13 +57,14 @@ export function AdvanceStageDialog({
 }: AdvanceStageDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [supplierId, setSupplierId] = useState<string>("")
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [resolutionResult, setResolutionResult] = useState<string>("")
   const [resolutionNoteChoice, setResolutionNoteChoice] = useState<string>("manual")
   const [resolutionNoteText, setResolutionNoteText] = useState<string>("")
   const [supplierResponseChoice, setSupplierResponseChoice] = useState<string>("manual")
   const [supplierResponseText, setSupplierResponseText] = useState<string>("")
   const [note, setNote] = useState<string>("")
+  const [showResolverDialog, setShowResolverDialog] = useState(false)
   const supplierResponseRef = useRef<HTMLTextAreaElement>(null)
   const supplierResponseSelectRef = useRef<HTMLButtonElement>(null)
   const resolutionRef = useRef<HTMLButtonElement>(null)
@@ -96,7 +98,7 @@ export function AdvanceStageDialog({
   const canSubmit =
     !roleBlocked &&
     unresolvedItems.length === 0 &&
-    (!needsSupplier || !!supplierId) &&
+    (!needsSupplier || !!selectedSupplier) &&
     (!showSupplierResponse || hasSupplierResponse) &&
     (!showResolutionFields || !!resolutionResult)
 
@@ -166,8 +168,8 @@ export function AdvanceStageDialog({
         return
       }
 
-      if (needsSupplier && supplierId) {
-        body.supplierId = supplierId
+      if (needsSupplier && selectedSupplier) {
+        body.supplierId = selectedSupplier.id
       }
 
       if (showResolutionFields) {
@@ -219,13 +221,14 @@ export function AdvanceStageDialog({
 
   const resetState = () => {
     setError(null)
-    setSupplierId("")
+    setSelectedSupplier(null)
     setResolutionResult("")
     setResolutionNoteChoice("manual")
     setResolutionNoteText("")
     setSupplierResponseChoice("manual")
     setSupplierResponseText("")
     setNote("")
+    setShowResolverDialog(false)
   }
 
   const handleChecklistCta = (item: TransitionChecklistItem) => {
@@ -287,25 +290,22 @@ export function AdvanceStageDialog({
             {needsSupplier && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm">
-                  {supplierId ? (
+                  {selectedSupplier ? (
                     <Check className="h-4 w-4 text-green-600" />
                   ) : (
                     <X className="h-4 w-4 text-destructive" />
                   )}
                   <span>Fornecedor definido</span>
                 </div>
-                <Select value={supplierId} onValueChange={setSupplierId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o fornecedor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map((supplier) => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.name} (SLA: {supplier.slaDays}d)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Button type="button" variant="outline" onClick={() => setShowResolverDialog(true)}>
+                  {selectedSupplier ? "Alterar fornecedor no ERP" : "Selecionar fornecedor no ERP"}
+                </Button>
+                {selectedSupplier && (
+                  <div className="rounded-lg border p-3 text-sm">
+                    <div className="font-medium">{selectedSupplier.name}</div>
+                    <div className="text-muted-foreground">SLA {selectedSupplier.slaDays} dias</div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -468,6 +468,19 @@ export function AdvanceStageDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <ErpSupplierResolutionDialog
+        open={showResolverDialog}
+        onOpenChange={setShowResolverDialog}
+        productCode={ticket.codigo}
+        productDescription={ticket.descricaoPeca}
+        localSuppliers={suppliers}
+        initialLocalSupplierId={ticket.supplierId}
+        onResolved={(supplier) => {
+          setSelectedSupplier(supplier)
+          setError(null)
+        }}
+      />
     </Dialog>
   )
 }

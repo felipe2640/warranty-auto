@@ -366,11 +366,15 @@ export async function createTicketWithUploads(options: {
     }
 
     const { signatureDataUrl: signatureValue, erpStoreId, ...ticketData } = ticketInput.data
+    const ticketPayload: Parameters<typeof createTicket>[0] = {
+      ...ticketData,
+      storeId: erpStoreId,
+      isWhatsapp: ticketData.isWhatsapp ?? false,
+      isClosed: false,
+    }
+
     const ticketId = await createTicket(
-      {
-        ...ticketData,
-        storeId: erpStoreId,
-      },
+      ticketPayload,
       tenantSettings.driveRootFolderId,
       options.session.uid,
       options.session.name,
@@ -496,7 +500,7 @@ export async function fetchTicketDetail(options: {
     timeline,
     attachments,
     audit,
-    suppliers: suppliers.filter((s) => s.active),
+    suppliers,
     stores,
     tenantSettings,
     nextTransitionChecklist,
@@ -560,6 +564,8 @@ export async function updateTicketDetails(options: {
     return { status: 200, ticket: { ...ticket } }
   }
 
+  const updatePatch: Partial<Ticket> = {}
+
   let storeName: string | undefined
   if (filteredPatch.storeId) {
     const store = await getErpStoreById(filteredPatch.storeId as string)
@@ -570,16 +576,19 @@ export async function updateTicketDetails(options: {
   }
 
   let supplierName = ticket.supplierName
-  if (filteredPatch.supplierId) {
+  if ("supplierId" in changedFields && filteredPatch.supplierId) {
     const supplier = await getSupplierById(filteredPatch.supplierId as string, options.tenantId)
     if (!supplier) {
       return { error: { message: "Fornecedor inválido" }, status: 400 }
     }
     supplierName = supplier.name
+    updatePatch.slaDays = supplier.slaDays
+    if (ticket.deliveredToSupplierAt) {
+      updatePatch.dueDate = computeDueDate(ticket.deliveredToSupplierAt, supplier.slaDays)
+    }
   }
 
-  const updatePatch: Partial<Ticket> = {}
-  Object.keys(changedFields).forEach((field) => {
+  ;(Object.keys(changedFields) as Array<keyof UpdateTicketDetailsInput>).forEach((field) => {
     updatePatch[field as keyof Ticket] = filteredPatch[field] as never
   })
 
@@ -614,7 +623,6 @@ export async function updateTicketDetails(options: {
     action: "TICKET_EDIT",
     userId: options.userId,
     userName: options.userName,
-    tenantId: options.tenantId,
     metadata: {
       changedFields,
       role: options.role,
@@ -843,13 +851,15 @@ export async function advanceTicketStatus(options: {
 
   const additionalData: Partial<Ticket> = {}
 
-  if (ticket.status === "INTERNO" && options.supplierId) {
-    const supplier = await getSupplierById(options.supplierId, options.tenantId)
+  const resolvedSupplierId = options.supplierId ?? ticket.supplierId
+
+  if (ticket.status === "INTERNO" && resolvedSupplierId) {
+    const supplier = await getSupplierById(resolvedSupplierId, options.tenantId)
     if (!supplier) {
       return { error: { message: "Fornecedor inválido" }, status: 400 }
     }
 
-    additionalData.supplierId = options.supplierId
+    additionalData.supplierId = resolvedSupplierId
     additionalData.supplierName = supplier.name
     additionalData.slaDays = supplier.slaDays
     additionalData.deliveredToSupplierAt = new Date()
@@ -861,7 +871,8 @@ export async function advanceTicketStatus(options: {
   }
 
   if (ticket.status === "RESOLUCAO") {
-    additionalData.resolutionResult = options.resolutionResult
+    const resolutionResult = ResolutionResultEnum.parse(options.resolutionResult)
+    additionalData.resolutionResult = resolutionResult
     additionalData.resolutionNotes = options.resolutionNotes
     additionalData.closedAt = new Date()
   }

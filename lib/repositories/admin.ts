@@ -125,6 +125,7 @@ export async function listSuppliers(tenantId: string): Promise<Supplier[]> {
       id: doc.id,
       name: data.name,
       slaDays: data.slaDays,
+      erpSupplierId: data.erpSupplierId,
       cnpj: data.cnpj,
       phone: data.phone,
       email: data.email,
@@ -148,6 +149,7 @@ export async function getSupplierById(supplierId: string, tenantId: string): Pro
     id: doc.id,
     name: data.name,
     slaDays: data.slaDays,
+    erpSupplierId: data.erpSupplierId,
     cnpj: data.cnpj,
     phone: data.phone,
     email: data.email,
@@ -171,6 +173,60 @@ export async function updateSupplier(supplierId: string, data: Partial<Supplier>
     .collection("suppliers")
     .doc(supplierId)
     .update(stripUndefined({ ...data, updatedAt: new Date() }))
+}
+
+export async function getSupplierByErpId(tenantId: string, erpSupplierId: string): Promise<Supplier | null> {
+  let snapshot: FirebaseFirestore.QuerySnapshot
+
+  try {
+    snapshot = await getAdminDb()
+      .collection("suppliers")
+      .where("tenantId", "==", tenantId)
+      .where("erpSupplierId", "==", erpSupplierId)
+      .limit(1)
+      .get()
+  } catch (error) {
+    if (!isMissingIndexError(error)) {
+      throw error
+    }
+
+    snapshot = await getAdminDb().collection("suppliers").where("tenantId", "==", tenantId).get()
+    const doc = snapshot.docs.find((item) => item.data().erpSupplierId === erpSupplierId)
+    if (!doc) return null
+
+    const data = doc.data()
+    return {
+      id: doc.id,
+      name: data.name,
+      slaDays: data.slaDays,
+      erpSupplierId: data.erpSupplierId,
+      cnpj: data.cnpj,
+      phone: data.phone,
+      email: data.email,
+      tenantId: data.tenantId,
+      active: data.active,
+      createdAt: toDate(data.createdAt)!,
+      updatedAt: toDate(data.updatedAt)!,
+    }
+  }
+
+  if (snapshot.empty) return null
+
+  const doc = snapshot.docs[0]
+  const data = doc.data()
+  return {
+    id: doc.id,
+    name: data.name,
+    slaDays: data.slaDays,
+    erpSupplierId: data.erpSupplierId,
+    cnpj: data.cnpj,
+    phone: data.phone,
+    email: data.email,
+    tenantId: data.tenantId,
+    active: data.active,
+    createdAt: toDate(data.createdAt)!,
+    updatedAt: toDate(data.updatedAt)!,
+  }
 }
 
 // Tenant Settings

@@ -39,3 +39,21 @@ export interface ErpProductLookup {
 export interface ErpProductLookupResponse {
   produto: ErpProductLookup
 } // CHG-20250929-14: product lookup response wrapper
+
+export interface ErpProductSupplier {
+  id: string
+  name: string
+  cnpj?: string | null
+  phone?: string | null
+  contactName?: string | null
+  site?: string | null
+  isSuggested: boolean
+  hasProductLink: boolean
+  lastPurchaseDate?: string | null
+}
+
+export interface ErpProductSuppliersResponse {
+  productCode: string
+  productDescription?: string | null
+  suppliers: ErpProductSupplier[]
+}

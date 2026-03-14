@@ -294,7 +294,7 @@ export function TicketDetailClient({
       <SetSupplierDialog
         open={showSupplierDialog}
         onOpenChange={setShowSupplierDialog}
-        ticketId={ticket.id}
+        ticket={ticket}
         suppliers={suppliers}
         onSuccess={handleInvalidate}
       />
