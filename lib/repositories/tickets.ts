@@ -115,14 +115,15 @@ export async function createTicket(
 
   // Create folder in Drive
   const customerLabel =
-    data.nomeRazaoSocial || (data.ticketType === "WARRANTY_STORE" ? "Garantia_Loja" : "Ticket") // CHG-20250929-03
+    data.nomeRazaoSocial ||
+    (data.ticketType === "WARRANTY_BATTERY" ? "Garantia_Bateria" : data.ticketType === "WARRANTY_STORE" ? "Garantia_Loja" : "Ticket") // CHG-20250929-03
   const folderName = `Ticket_${ticketId}_${customerLabel.substring(0, 20)}`
   const folderId = await createFolder(folderName, driveRootFolderId)
 
   const ticketData = stripUndefined({
     ...data,
     id: ticketId,
-    status: "RECEBIMENTO" as Status,
+    status: "INTERNO" as Status,
     driveFolderId: folderId,
     createdAt: now,
     updatedAt: now,
@@ -134,10 +135,17 @@ export async function createTicket(
       numeroVendaOuCfe: data.numeroVendaOuCfe,
       codigo: data.codigo,
       ref: data.ref,
+      numeroSerie: (data as { numeroSerie?: string }).numeroSerie,
     }),
     stageHistory: [
       {
         status: "RECEBIMENTO",
+        completedAt: now,
+        completedBy: userId,
+        completedByName: userName,
+      },
+      {
+        status: "INTERNO",
         completedAt: now,
         completedBy: userId,
         completedByName: userName,
@@ -210,6 +218,25 @@ export async function updateTicketStatus(
       userName,
       createdAt: now,
     })
+
+  // Create automatic summary entry when ticket is closed
+  if (newStatus === "ENCERRADO") {
+    const resultadoLabels: Record<string, string> = { CREDITO: "Crédito", TROCA: "Troca", NEGOU: "Negou" }
+    const resultadoLabel = ticket.resolutionResult ? (resultadoLabels[ticket.resolutionResult] ?? ticket.resolutionResult) : "Não informado"
+    const notasLine = ticket.resolutionNotes ? `\nNotas: ${ticket.resolutionNotes}` : ""
+    await getAdminDb()
+      .collection(TICKETS_COLLECTION)
+      .doc(ticketId)
+      .collection(TIMELINE_COLLECTION)
+      .add({
+        ticketId,
+        type: "OBS",
+        text: `Solução finalizada — Resultado: ${resultadoLabel}${notasLine}`,
+        userId,
+        userName,
+        createdAt: new Date(now.getTime() + 1),
+      })
+  }
 
   // Create audit entry
   await getAdminDb().collection(TICKETS_COLLECTION).doc(ticketId).collection(AUDIT_COLLECTION).add({

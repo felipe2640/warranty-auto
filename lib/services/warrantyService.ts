@@ -85,6 +85,7 @@ const EDIT_FIELD_LABELS: Record<string, string> = {
   dataVenda: "Data da venda", // CHG-20251001-01: label for internal sale date edits
   storeId: "Loja",
   supplierId: "Fornecedor",
+  numeroSerie: "Número de Série",
 }
 
 function buildTransitionChecklist(options: {
@@ -114,13 +115,23 @@ function buildTransitionChecklist(options: {
       cta: satisfied ? undefined : { type: "supplier", label: "Definir fornecedor" },
     })
 
-    const nfSatisfied = Boolean(options.ticket.nfIda && options.ticket.dataIndoFornecedor)
-    items.push({
-      key: "nfFields",
-      label: "NF Ida e data de ida ao fornecedor preenchidas",
-      satisfied: nfSatisfied,
-      cta: nfSatisfied ? undefined : { type: "editInternal", label: "Preencher dados internos" },
-    })
+    if (options.ticket.ticketType === "WARRANTY_BATTERY") {
+      const remessaSatisfied = Boolean(options.ticket.remessa && options.ticket.dataIndoFornecedor)
+      items.push({
+        key: "remessaFields",
+        label: "Remessa e data de ida ao fornecedor preenchidas",
+        satisfied: remessaSatisfied,
+        cta: remessaSatisfied ? undefined : { type: "editInternal", label: "Preencher dados internos" },
+      })
+    } else {
+      const nfSatisfied = Boolean(options.ticket.nfIda && options.ticket.dataIndoFornecedor)
+      items.push({
+        key: "nfFields",
+        label: "NF Ida e data de ida ao fornecedor preenchidas",
+        satisfied: nfSatisfied,
+        cta: nfSatisfied ? undefined : { type: "editInternal", label: "Preencher dados internos" },
+      })
+    }
   }
 
   if (options.ticket.status === "ENTREGA_LOGISTICA") {
@@ -151,6 +162,16 @@ function buildTransitionChecklist(options: {
       satisfied,
       cta: satisfied ? undefined : { type: "resolution", label: "Registrar resultado final" },
     })
+
+    if (options.ticket.ticketType === "WARRANTY_BATTERY") {
+      const retornoSatisfied = !!options.ticket.retorno
+      items.push({
+        key: "retorno",
+        label: "Número de retorno preenchido",
+        satisfied: retornoSatisfied,
+        cta: retornoSatisfied ? undefined : { type: "editInternal", label: "Preencher retorno" },
+      })
+    }
   }
 
   const transitionError = validateTransition(
@@ -596,7 +617,7 @@ export async function updateTicketDetails(options: {
     updatePatch.supplierName = supplierName
   }
 
-  const searchFieldsChanged = ["nomeRazaoSocial", "cpfCnpj", "celular", "numeroVendaOuCfe", "codigo", "ref"].some(
+  const searchFieldsChanged = ["nomeRazaoSocial", "cpfCnpj", "celular", "numeroVendaOuCfe", "codigo", "ref", "numeroSerie"].some(
     (field) => field in updatePatch,
   )
 
@@ -609,6 +630,7 @@ export async function updateTicketDetails(options: {
       numeroVendaOuCfe: mergedTicket.numeroVendaOuCfe,
       codigo: mergedTicket.codigo,
       ref: mergedTicket.ref,
+      numeroSerie: mergedTicket.numeroSerie,
     })
   }
 
@@ -822,6 +844,7 @@ export async function advanceTicketStatus(options: {
   resolutionResult?: string
   resolutionNotes?: string
   supplierResponse?: string
+  deliverySignatureDataUrl?: string
 }) {
   const ticket = await getTicketById(options.ticketId)
   if (!ticket) {
@@ -896,6 +919,19 @@ export async function advanceTicketStatus(options: {
   }
 
   await updateTicketStatus(options.ticketId, nextStatus, options.userId, options.userName, additionalData)
+
+  if (nextStatus === "ENCERRADO" && options.deliverySignatureDataUrl) {
+    const base64Data = options.deliverySignatureDataUrl.replace(/^data:image\/png;base64,/, "")
+    const signatureBuffer = Buffer.from(base64Data, "base64")
+    await addAttachment(options.ticketId, signatureBuffer, {
+      name: `assinatura_entrega_${options.ticketId}.png`,
+      mimeType: "image/png",
+      size: signatureBuffer.length,
+      category: "ASSINATURA",
+      uploadedBy: options.userId,
+      uploadedByName: options.userName,
+    })
+  }
 
   const note = options.note?.trim()
   if (note) {

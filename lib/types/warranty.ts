@@ -1,7 +1,7 @@
 import type { Attachment, Status } from "@/lib/schemas"
 
 export interface TransitionChecklistItem {
-  key: "supplierId" | "canhoto" | "supplierResponse" | "resolutionResult" | "nfFields"
+  key: "supplierId" | "canhoto" | "supplierResponse" | "resolutionResult" | "nfFields" | "remessaFields" | "retorno"
   label: string
   satisfied: boolean
   cta?: {

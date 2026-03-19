@@ -19,7 +19,7 @@ export const StatusEnum = z.enum([
 export type Status = z.infer<typeof StatusEnum>
 
 // Ticket types (CHG-20250929-01: add warranty store ticket type)
-export const TicketTypeEnum = z.enum(["WARRANTY", "WARRANTY_STORE"])
+export const TicketTypeEnum = z.enum(["WARRANTY", "WARRANTY_STORE", "WARRANTY_BATTERY"])
 export type TicketType = z.infer<typeof TicketTypeEnum>
 
 // Status order for workflow
@@ -197,6 +197,7 @@ export const TicketSchema = z.object({
   quantidade: z.number().int().min(1),
   ref: z.string().optional(),
   codigo: z.string().optional(),
+  numeroSerie: z.string().optional(),
   defeitoPeca: z.string().min(1),
   numeroVendaOuCfe: z.string().min(1).optional(), // CHG-20250929-13: allow store tickets without NFC-e
   numeroVendaOuCfeFornecedor: z.string().optional(),
@@ -255,6 +256,7 @@ const CreateTicketFormBaseSchema = z.object({
   quantidade: z.number().int().min(1, "Quantidade mínima é 1"),
   ref: z.string().optional(),
   codigo: z.string().optional(),
+  numeroSerie: z.string().optional(),
   defeitoPeca: z.string().min(1, "Defeito é obrigatório"),
   numeroVendaOuCfe: z.string().min(1, "Número da venda/CFe é obrigatório"),
   numeroVendaOuCfeFornecedor: z.string().optional(),
@@ -301,6 +303,20 @@ export const CreateTicketFormSchema = z.discriminatedUnion("ticketType", [
     celular: z.string().optional(),
     isWhatsapp: z.boolean().optional(),
   }),
+  CreateTicketFormBaseSchema.extend({
+    ticketType: z.literal("WARRANTY_BATTERY"),
+    numeroVendaOuCfe: z.string().optional(),
+    codigo: z.string().min(1, "Código do produto é obrigatório"),
+    numeroSerie: z.string().min(1, "Número de série é obrigatório"),
+    remessa: z.string().min(1, "Remessa é obrigatória"),
+    dataVenda: dateOnlySchema.optional(),
+    signatureDataUrl: z.string().optional(),
+    nomeRazaoSocial: z.string().optional(),
+    nomeFantasiaApelido: z.string().optional(),
+    cpfCnpj: z.string().optional(),
+    celular: z.string().optional(),
+    isWhatsapp: z.boolean().optional(),
+  }),
 ])
 export type CreateTicketFormData = z.infer<typeof CreateTicketFormSchema>
 
@@ -312,6 +328,7 @@ const CreateTicketInputBaseSchema = z.object({
   quantidade: z.number().int().min(1),
   ref: z.string().optional(),
   codigo: z.string().optional(),
+  numeroSerie: z.string().optional(),
   defeitoPeca: z.string().min(1),
   numeroVendaOuCfe: z.string().min(1),
   numeroVendaOuCfeFornecedor: z.string().optional(),
@@ -348,6 +365,20 @@ export const CreateTicketInputSchema = z.discriminatedUnion("ticketType", [
     numeroVendaOuCfe: z.string().optional(), // CHG-20250929-13: NFC-e not required for store tickets
     codigo: z.string().min(1),
     dataVenda: dateOnlySchema.optional(), // CHG-20250929-16: sale date entered in interno
+    signatureDataUrl: z.string().optional(),
+    nomeRazaoSocial: z.string().optional(),
+    nomeFantasiaApelido: z.string().optional(),
+    cpfCnpj: z.string().optional(),
+    celular: z.string().optional(),
+    isWhatsapp: z.boolean().optional(),
+  }),
+  CreateTicketInputBaseSchema.extend({
+    ticketType: z.literal("WARRANTY_BATTERY"),
+    numeroVendaOuCfe: z.string().optional(),
+    codigo: z.string().min(1),
+    numeroSerie: z.string().min(1),
+    remessa: z.string().min(1),
+    dataVenda: dateOnlySchema.optional(),
     signatureDataUrl: z.string().optional(),
     nomeRazaoSocial: z.string().optional(),
     nomeFantasiaApelido: z.string().optional(),
@@ -404,6 +435,7 @@ export const UpdateTicketDetailsSchema = z.object({
     .optional(),
   ref: optionalTrimmedString,
   codigo: optionalTrimmedString,
+  numeroSerie: optionalTrimmedString,
   defeitoPeca: requiredTrimmedString.optional(),
   numeroVendaOuCfe: requiredTrimmedString.optional(),
   numeroVendaOuCfeFornecedor: optionalTrimmedString,

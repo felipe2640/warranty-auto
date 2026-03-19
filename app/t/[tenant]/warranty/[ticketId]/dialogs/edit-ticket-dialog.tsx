@@ -148,6 +148,7 @@ export function EditTicketDialog({
       quantidade: ticket.quantidade,
       ref: ticket.ref,
       codigo: ticket.codigo,
+      numeroSerie: ticket.numeroSerie,
       defeitoPeca: ticket.defeitoPeca,
       numeroVendaOuCfe: ticket.numeroVendaOuCfe,
       numeroVendaOuCfeFornecedor: ticket.numeroVendaOuCfeFornecedor,
@@ -176,6 +177,7 @@ export function EditTicketDialog({
       quantidade: ticket.quantidade,
       ref: ticket.ref,
       codigo: ticket.codigo,
+      numeroSerie: ticket.numeroSerie,
       defeitoPeca: ticket.defeitoPeca,
       numeroVendaOuCfe: ticket.numeroVendaOuCfe,
       numeroVendaOuCfeFornecedor: ticket.numeroVendaOuCfeFornecedor,
@@ -198,18 +200,29 @@ export function EditTicketDialog({
   const supplierValue = watch("supplierId") || "none";
   const storeValue = watch("storeId") || "";
   const requiresInternalFields = canEditInternal && ticket.status === "INTERNO";
+  const isBattery = ticket.ticketType === "WARRANTY_BATTERY";
 
   const onSubmit = async (data: UpdateTicketDetailsInput) => {
     setError(null);
-    clearErrors(["nfIda", "dataIndoFornecedor"]);
+    clearErrors(["nfIda", "remessa", "dataIndoFornecedor"]);
     if (requiresInternalFields) {
       let hasMissing = false;
-      if (!data.nfIda || !data.nfIda.trim()) {
-        setFieldError("nfIda", {
-          type: "manual",
-          message: "NF ida é obrigatória",
-        });
-        hasMissing = true;
+      if (isBattery) {
+        if (!data.remessa || !data.remessa.trim()) {
+          setFieldError("remessa", {
+            type: "manual",
+            message: "Remessa é obrigatória para bateria",
+          });
+          hasMissing = true;
+        }
+      } else {
+        if (!data.nfIda || !data.nfIda.trim()) {
+          setFieldError("nfIda", {
+            type: "manual",
+            message: "NF ida é obrigatória",
+          });
+          hasMissing = true;
+        }
       }
       if (!data.dataIndoFornecedor) {
         setFieldError("dataIndoFornecedor", {
@@ -377,6 +390,16 @@ export function EditTicketDialog({
               </div>
 
               <div className="space-y-2">
+                <Label>Número de Série {isBattery ? "*" : ""}</Label>
+                <Input {...register("numeroSerie")} placeholder="S/N da bateria ou peça" />
+                {errors.numeroSerie && (
+                  <p className="text-sm text-destructive">
+                    {errors.numeroSerie.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
                 <Label>Defeito *</Label>
                 <Input {...register("defeitoPeca")} />
                 {errors.defeitoPeca && (
@@ -411,21 +434,25 @@ export function EditTicketDialog({
 
         {canEditInternal && (
           <AccordionItem value="interno">
-            <AccordionTrigger>Interno (NF e Logística)</AccordionTrigger>
+            <AccordionTrigger>Interno {isBattery ? "(Remessa e Logística)" : "(NF e Logística)"}</AccordionTrigger>
             <AccordionContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Preencha NF ida e data de ida para liberar o avanço para Logística.
+                {isBattery
+                  ? "Preencha remessa e data de ida para liberar o avanço para Logística."
+                  : "Preencha NF ida e data de ida para liberar o avanço para Logística."}
               </p>
 
-              <div className="space-y-2">
-                <Label>{`NF Ida${requiresInternalFields ? " *" : ""}`}</Label>
-                <Input {...register("nfIda")} />
-                {errors.nfIda && (
-                  <p className="text-sm text-destructive">
-                    {errors.nfIda.message}
-                  </p>
-                )}
-              </div>
+              {!isBattery && (
+                <div className="space-y-2">
+                  <Label>{`NF Ida${requiresInternalFields ? " *" : ""}`}</Label>
+                  <Input {...register("nfIda")} />
+                  {errors.nfIda && (
+                    <p className="text-sm text-destructive">
+                      {errors.nfIda.message}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>NF Retorno</Label>
@@ -448,7 +475,7 @@ export function EditTicketDialog({
               </div>
 
               <div className="space-y-2">
-                <Label>Remessa</Label>
+                <Label>{`Remessa${isBattery && requiresInternalFields ? " *" : ""}`}</Label>
                 <Input {...register("remessa")} />
                 {errors.remessa && (
                   <p className="text-sm text-destructive">

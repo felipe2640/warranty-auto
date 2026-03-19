@@ -60,12 +60,23 @@ export function validateTransition(
   }
 
   if (ticket.status === "INTERNO") {
-    const nfOk = Boolean(ticket.nfIda && ticket.dataIndoFornecedor)
-    if (!nfOk) {
-      return {
-        code: "MISSING_REQUIREMENT",
-        message: "NF Ida e data de ida ao fornecedor são obrigatórias no Interno",
-        missing: "nfFields",
+    if (ticket.ticketType === "WARRANTY_BATTERY") {
+      const remessaOk = Boolean(ticket.remessa && ticket.dataIndoFornecedor)
+      if (!remessaOk) {
+        return {
+          code: "MISSING_REQUIREMENT",
+          message: "Remessa e data de ida ao fornecedor são obrigatórias no Interno",
+          missing: "remessaFields",
+        }
+      }
+    } else {
+      const nfOk = Boolean(ticket.nfIda && ticket.dataIndoFornecedor)
+      if (!nfOk) {
+        return {
+          code: "MISSING_REQUIREMENT",
+          message: "NF Ida e data de ida ao fornecedor são obrigatórias no Interno",
+          missing: "nfFields",
+        }
       }
     }
   }
@@ -89,6 +100,14 @@ export function validateTransition(
         code: "MISSING_REQUIREMENT",
         message: "Resultado final deve ser Crédito, Troca ou Negou",
         missing: "resolution",
+      }
+    }
+
+    if (ticket.ticketType === "WARRANTY_BATTERY" && !ticket.retorno) {
+      return {
+        code: "MISSING_REQUIREMENT",
+        message: "Número de retorno é obrigatório para bateria",
+        missing: "retorno",
       }
     }
   }

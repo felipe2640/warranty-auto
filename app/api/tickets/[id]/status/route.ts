@@ -13,7 +13,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { id } = await params
     const body = await request.json()
-    const { action, targetStatus, reason, supplierId, resolutionResult, resolutionNotes, supplierResponse, nextStatus, note } =
+    const { action, targetStatus, reason, supplierId, resolutionResult, resolutionNotes, supplierResponse, nextStatus, note, deliverySignatureDataUrl } =
       body
 
     const permissions = getUserPermissions(session.role)
@@ -33,6 +33,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         resolutionResult,
         resolutionNotes,
         supplierResponse,
+        deliverySignatureDataUrl,
       })
 
       if (result.error) {

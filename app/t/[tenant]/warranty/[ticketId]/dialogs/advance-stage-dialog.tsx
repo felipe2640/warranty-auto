@@ -13,6 +13,7 @@ import type { NextTransitionChecklist, TransitionChecklistItem } from "@/lib/typ
 import { formatDateBR } from "@/lib/format"
 import { Loader2, AlertCircle, ChevronRight, Check, X } from "lucide-react"
 import { ErpSupplierResolutionDialog } from "./erp-supplier-resolution-dialog"
+import { SignaturePad } from "@/components/warranty/signature-pad"
 
 interface AdvanceStageDialogProps {
   open: boolean
@@ -65,6 +66,8 @@ export function AdvanceStageDialog({
   const [supplierResponseText, setSupplierResponseText] = useState<string>("")
   const [note, setNote] = useState<string>("")
   const [showResolverDialog, setShowResolverDialog] = useState(false)
+  const [deliverySignatureDataUrl, setDeliverySignatureDataUrl] = useState<string | null>(null)
+  const [deliverySignatureSaved, setDeliverySignatureSaved] = useState(false)
   const supplierResponseRef = useRef<HTMLTextAreaElement>(null)
   const supplierResponseSelectRef = useRef<HTMLButtonElement>(null)
   const resolutionRef = useRef<HTMLButtonElement>(null)
@@ -76,6 +79,7 @@ export function AdvanceStageDialog({
   const needsResolution = checklistItems.some((item) => item.key === "resolutionResult" && !item.satisfied)
   const showSupplierResponse = ticket.status === "COBRANCA_ACOMPANHAMENTO"
   const showResolutionFields = ticket.status === "RESOLUCAO"
+  const showDeliverySignature = ticket.status === "RESOLUCAO" && ticket.ticketType === "WARRANTY"
   const roleBlocked = !checklist.canAdvance && checklistItems.every((item) => item.satisfied)
   const unresolvedItems = checklistItems.filter(
     (item) => !item.satisfied && !["supplierId", "supplierResponse", "resolutionResult"].includes(item.key),
@@ -100,7 +104,8 @@ export function AdvanceStageDialog({
     unresolvedItems.length === 0 &&
     (!needsSupplier || !!selectedSupplier) &&
     (!showSupplierResponse || hasSupplierResponse) &&
-    (!showResolutionFields || !!resolutionResult)
+    (!showResolutionFields || !!resolutionResult) &&
+    (!showDeliverySignature || deliverySignatureSaved)
 
   useEffect(() => {
     if (!open) return
@@ -182,6 +187,14 @@ export function AdvanceStageDialog({
         if (resolvedResolutionNotes) {
           body.resolutionNotes = resolvedResolutionNotes
         }
+        if (showDeliverySignature) {
+          if (!deliverySignatureDataUrl) {
+            setError("Assinatura de entrega é obrigatória")
+            setIsSubmitting(false)
+            return
+          }
+          body.deliverySignatureDataUrl = deliverySignatureDataUrl
+        }
       }
 
       if (showSupplierResponse) {
@@ -229,6 +242,8 @@ export function AdvanceStageDialog({
     setSupplierResponseText("")
     setNote("")
     setShowResolverDialog(false)
+    setDeliverySignatureDataUrl(null)
+    setDeliverySignatureSaved(false)
   }
 
   const handleChecklistCta = (item: TransitionChecklistItem) => {
@@ -405,6 +420,31 @@ export function AdvanceStageDialog({
                     />
                   )}
                 </div>
+              </div>
+            )}
+
+            {showDeliverySignature && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>Assinatura de Entrega ao Cliente *</Label>
+                  {deliverySignatureSaved && (
+                    <span className="text-xs text-green-600 flex items-center gap-1">
+                      <Check className="h-3 w-3" />
+                      Salva
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">Colha a assinatura do cliente ao receber a peça de volta.</p>
+                <SignaturePad
+                  onSave={(dataUrl) => {
+                    setDeliverySignatureDataUrl(dataUrl)
+                    setDeliverySignatureSaved(true)
+                  }}
+                  onClear={() => {
+                    setDeliverySignatureDataUrl(null)
+                    setDeliverySignatureSaved(false)
+                  }}
+                />
               </div>
             )}
 

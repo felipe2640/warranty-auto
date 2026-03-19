@@ -175,15 +175,15 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   }, [watchErpStoreId])
 
   useEffect(() => {
-    if (watchTicketType !== "WARRANTY_STORE") return
-    setValue("nomeRazaoSocial", undefined) // CHG-20250929-06: clear customer fields for store tickets
+    if (watchTicketType !== "WARRANTY_STORE" && watchTicketType !== "WARRANTY_BATTERY") return
+    setValue("nomeRazaoSocial", undefined) // CHG-20250929-06: clear customer fields for store/battery tickets
     setValue("nomeFantasiaApelido", undefined)
     setValue("cpfCnpj", undefined)
     setValue("celular", undefined)
     setValue("isWhatsapp", false)
     setValue("dataVenda", undefined)
     setValue("signatureDataUrl", "", { shouldValidate: true })
-    setProductCode("") // CHG-20250929-15: reset product search for store tickets
+    setProductCode("") // CHG-20250929-15: reset product search for store/battery tickets
     setSelectedProduct(null)
     setProductSearchError(null)
     setSignatureDataUrl(null)
@@ -210,7 +210,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
       issues.add("Selecione um item da NFC-e")
     }
 
-    if (ticketType === "WARRANTY_STORE" && !selectedProduct) {
+    if ((ticketType === "WARRANTY_STORE" || ticketType === "WARRANTY_BATTERY") && !selectedProduct) {
       issues.add("Busque um produto válido pelo código") // CHG-20250929-15
     }
 
@@ -282,7 +282,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
         }
       }
 
-      const isStoreTicket = effectiveTicketType === "WARRANTY_STORE"
+      const isStoreTicket = effectiveTicketType === "WARRANTY_STORE" || effectiveTicketType === "WARRANTY_BATTERY"
       const customerFields = new Set(["nomeRazaoSocial", "nomeFantasiaApelido", "cpfCnpj", "celular", "isWhatsapp"])
       // Add all form fields
       formData.append("tenantSlug", tenant)
@@ -449,7 +449,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
   }
 
   const accordionDefaults =
-    watchTicketType === "WARRANTY" ? ["cliente", "financeiro", "peca", "obs", "anexos"] : ["financeiro", "peca", "obs", "anexos"] // CHG-20250929-06
+    watchTicketType === "WARRANTY" ? ["cliente", "financeiro", "peca", "obs", "anexos"] : ["financeiro", "peca", "obs", "anexos"]
 
   return (
     <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
@@ -467,7 +467,9 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
       <Alert>
         <AlertDescription>
           {watchTicketType === "WARRANTY_STORE" ? (
-            <>Ticket interno da loja (sem identificação de cliente). {/* CHG-20250929-06 */}</>
+            <>Ticket interno da loja (sem identificação de cliente).</>
+          ) : watchTicketType === "WARRANTY_BATTERY" ? (
+            <>Ticket de bateria — sem nota fiscal. Informe a remessa e o número de série.</>
           ) : (
             <>
               Os campos de NF serão preenchidos na etapa <strong>Interno</strong>. No cadastro inicial, informe somente
@@ -489,6 +491,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
           <SelectContent>
             <SelectItem value="WARRANTY">Garantia (com cliente)</SelectItem>
             <SelectItem value="WARRANTY_STORE">Garantia Loja (sem cliente)</SelectItem>
+            <SelectItem value="WARRANTY_BATTERY">Garantia Bateria</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -620,7 +623,7 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
             <span className="font-semibold">Peça</span>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-4">
-            {watchTicketType === "WARRANTY" ? ( // CHG-20250929-13: hide NFC-e for store tickets
+            {watchTicketType === "WARRANTY" ? ( // hide NFC-e for store/battery tickets
               <div className="space-y-3 rounded-lg border border-dashed border-border p-3">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
                   <div className="space-y-2">
@@ -733,10 +736,26 @@ export function NewTicketForm({ tenant, userStoreId }: NewTicketFormProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="codigo">
-                  Código {watchTicketType === "WARRANTY_STORE" ? "*" : ""} {/* CHG-20250929-13: require product code */}
+                  Código {(watchTicketType === "WARRANTY_STORE" || watchTicketType === "WARRANTY_BATTERY") ? "*" : ""}
                 </Label>
                 <Input id="codigo" {...register("codigo")} placeholder="Código" />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="numeroSerie">
+                  Número de Série {watchTicketType === "WARRANTY_BATTERY" ? "*" : ""}
+                </Label>
+                <Input id="numeroSerie" {...register("numeroSerie")} placeholder="S/N da bateria ou peça" />
+                {errors.numeroSerie && <p className="text-sm text-destructive">{errors.numeroSerie.message}</p>}
+              </div>
+
+              {watchTicketType === "WARRANTY_BATTERY" && (
+                <div className="space-y-2">
+                  <Label htmlFor="remessa">Remessa *</Label>
+                  <Input id="remessa" {...register("remessa")} placeholder="Número da remessa" />
+                  {errors.remessa && <p className="text-sm text-destructive">{errors.remessa.message}</p>}
+                </div>
+              )}
 
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="defeitoPeca">Defeito *</Label>
